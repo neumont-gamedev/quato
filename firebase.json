@@ -1,4 +1,20 @@
 {
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "database": "(default)",
+    "location": "nam5"
+  },
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "quato-1512c.web.app",
+      "quato-1512c.firebaseapp.com"
+    ],
+    "providers": {
+      "anonymous": true
+    }
+  },
   "hosting": {
     "public": "dist",
     "ignore": [

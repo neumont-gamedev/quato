@@ -4,6 +4,10 @@ import type { QuizFile, QuizQuestion, ScoreState } from "../types/Question";
 import { QuestionFactory } from "./QuestionFactory";
 import { ScoreManager } from "./ScoreManager";
 
+export interface QuizEngineOptions {
+  onActiveQuestionChange?: (question: QuizQuestion | undefined, questionIndex: number, currentSlide?: HTMLElement) => void;
+}
+
 export class QuizEngine {
   private readonly questionFactory = new QuestionFactory();
   private readonly slideGenerator = new SlideGenerator(this.questionFactory);
@@ -11,11 +15,13 @@ export class QuizEngine {
   private readonly questionsById: Map<string, QuizQuestion>;
   private readonly answeredQuestions = new Set<string>();
   private activeQuestion?: QuizQuestion;
+  private lastActiveQuestionKey = "";
 
   constructor(
     private readonly quiz: QuizFile,
     private readonly hud: HTMLElement,
-    private readonly finalScore: HTMLElement | null
+    private readonly finalScore: HTMLElement | null,
+    private readonly options: QuizEngineOptions = {}
   ) {
     this.questionsById = new Map(quiz.questions.map((question) => [question.id, question]));
     this.scoreManager = new ScoreManager(quiz.questions.length);
@@ -46,7 +52,28 @@ export class QuizEngine {
   handleSlideChanged(currentSlide?: HTMLElement): void {
     const questionId = currentSlide?.dataset.questionId;
     this.activeQuestion = questionId ? this.questionsById.get(questionId) : undefined;
+    const questionIndex = this.activeQuestion
+      ? this.quiz.questions.findIndex((question) => question.id === this.activeQuestion?.id) + 1
+      : 0;
+    const activeQuestionKey = this.activeQuestion?.id ?? "presentation";
+
+    if (activeQuestionKey !== this.lastActiveQuestionKey) {
+      this.lastActiveQuestionKey = activeQuestionKey;
+      this.options.onActiveQuestionChange?.(this.activeQuestion, questionIndex, currentSlide);
+    }
+
     this.renderHud();
+  }
+
+  syncCurrentSlideFromDocument(): { question: QuizQuestion | undefined; questionIndex: number } {
+    this.handleSlideChanged(document.querySelector<HTMLElement>("section.present") ?? undefined);
+
+    return {
+      question: this.activeQuestion,
+      questionIndex: this.activeQuestion
+        ? this.quiz.questions.findIndex((question) => question.id === this.activeQuestion?.id) + 1
+        : 0
+    };
   }
 
   private bindQuestionForm(section: HTMLElement, question: QuizQuestion): void {

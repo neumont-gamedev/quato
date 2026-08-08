@@ -1,0 +1,277 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: sessions
+    // Document ID: 6-character classroom join code.
+    // Fields:
+    //   - code: string, required, immutable, 6 chars.
+    //   - title: string, required, 1..120 chars.
+    //   - instructorUid: string, required, immutable owner UID.
+    //   - status: string, required enum lobby/presenting/question-open/locked/revealed/ended.
+    //   - currentQuestionId: string or null, required, <=80 chars.
+    //   - currentQuestionIndex: number, required, 0..500.
+    //   - totalQuestions: number, required, 0..500.
+    //   - activeQuestion: map or null, required, public question only. No correct answers.
+    //   - revealedAnswer: map or null, required, correct answer payload only allowed after reveal.
+    //   - questionStartedAt: timestamp or null, required, set when a question opens.
+    //   - playerCount: number, required, 0..500, instructor-maintained display hint.
+    //   - answeredCount: number, required, 0..500, instructor-maintained display hint.
+    //   - createdAt: timestamp, required, immutable.
+    //   - updatedAt: timestamp, required.
+    //
+    // Subcollection: sessions/{code}/players
+    // Document ID: Firebase Auth UID.
+    // Fields:
+    //   - uid: string, required, immutable, must equal request.auth.uid.
+    //   - name: string, required, 1..32 chars, classroom display name only.
+    //   - score: number, required, 0..1000000.
+    //   - streak: number, required, 0..500.
+    //   - joinedAt: timestamp, required, immutable.
+    //   - lastSeenAt: timestamp, required.
+    //
+    // Subcollection: sessions/{code}/answers
+    // Document ID: {questionId}_{uid}.
+    // Fields:
+    //   - uid: string, required, immutable, must equal request.auth.uid.
+    //   - questionId: string, required, immutable, must match active session question.
+    //   - questionType: string, required enum.
+    //   - value: string, number, bool, or list, required, size-limited when applicable.
+    //   - submittedAt: timestamp, required, immutable.
+    //
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function sessionPath(code) {
+      return /databases/$(database)/documents/sessions/$(code);
+    }
+
+    function isInstructor(code) {
+      return isAuthenticated() &&
+        exists(sessionPath(code)) &&
+        get(sessionPath(code)).data.instructorUid == request.auth.uid;
+    }
+
+    function validString(value, minLen, maxLen) {
+      return value is string && value.size() >= minLen && value.size() <= maxLen;
+    }
+
+    function validOptionalStringOrNull(value, maxLen) {
+      return value == null || (value is string && value.size() <= maxLen);
+    }
+
+    function validStatus(status) {
+      return status in ['lobby', 'presenting', 'question-open', 'locked', 'revealed', 'ended'];
+    }
+
+    function validQuestionType(type) {
+      return type in ['multiple-choice', 'true-false', 'fill-blank', 'code-question'];
+    }
+
+    function validPublicQuestion(question) {
+      return question == null ||
+        (
+          question is map &&
+          question.keys().hasOnly(['id', 'type', 'question', 'points', 'timeLimit', 'answers', 'language', 'code']) &&
+          validString(question.id, 1, 80) &&
+          validQuestionType(question.type) &&
+          validString(question.question, 1, 500) &&
+          (!('points' in question) || (question.points is number && question.points >= 1 && question.points <= 1000)) &&
+          (!('timeLimit' in question) || (question.timeLimit is number && question.timeLimit >= 1 && question.timeLimit <= 600)) &&
+          (!('language' in question) || validString(question.language, 1, 24)) &&
+          (!('code' in question) || validString(question.code, 1, 4000)) &&
+          (!('answers' in question) || (question.answers is list && question.answers.size() >= 2 && question.answers.size() <= 8))
+        );
+    }
+
+    function validRevealedAnswer(answer) {
+      return answer == null ||
+        (
+          answer is map &&
+          answer.keys().hasOnly(['questionId', 'type', 'correctAnswer', 'explanation']) &&
+          validString(answer.questionId, 1, 80) &&
+          validQuestionType(answer.type) &&
+          validString(answer.correctAnswer, 1, 500) &&
+          (!('explanation' in answer) || validString(answer.explanation, 1, 1000))
+        );
+    }
+
+    function validRevealVisibility(data) {
+      return data.revealedAnswer == null || data.status in ['revealed', 'ended'];
+    }
+
+    function validSession(data) {
+      return data.keys().hasOnly([
+          'code',
+          'title',
+          'instructorUid',
+          'status',
+          'currentQuestionId',
+          'currentQuestionIndex',
+          'totalQuestions',
+          'activeQuestion',
+          'revealedAnswer',
+          'questionStartedAt',
+          'playerCount',
+          'answeredCount',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasAll([
+          'code',
+          'title',
+          'instructorUid',
+          'status',
+          'currentQuestionId',
+          'currentQuestionIndex',
+          'totalQuestions',
+          'activeQuestion',
+          'revealedAnswer',
+          'questionStartedAt',
+          'playerCount',
+          'answeredCount',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        validString(data.code, 6, 6) &&
+        validString(data.title, 1, 120) &&
+        validString(data.instructorUid, 1, 128) &&
+        validStatus(data.status) &&
+        validOptionalStringOrNull(data.currentQuestionId, 80) &&
+        data.currentQuestionIndex is number &&
+        data.currentQuestionIndex >= 0 &&
+        data.currentQuestionIndex <= 500 &&
+        data.totalQuestions is number &&
+        data.totalQuestions >= 0 &&
+        data.totalQuestions <= 500 &&
+        validPublicQuestion(data.activeQuestion) &&
+        validRevealedAnswer(data.revealedAnswer) &&
+        validRevealVisibility(data) &&
+        (data.questionStartedAt == null || data.questionStartedAt is timestamp) &&
+        data.playerCount is number &&
+        data.playerCount >= 0 &&
+        data.playerCount <= 500 &&
+        data.answeredCount is number &&
+        data.answeredCount >= 0 &&
+        data.answeredCount <= 500 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function validSessionCreate(code) {
+      return validSession(request.resource.data) &&
+        request.resource.data.code == code &&
+        request.resource.data.instructorUid == request.auth.uid &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.updatedAt == request.time;
+    }
+
+    function validSessionUpdate() {
+      return validSession(request.resource.data) &&
+        request.resource.data.code == resource.data.code &&
+        request.resource.data.instructorUid == resource.data.instructorUid &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.updatedAt == request.time;
+    }
+
+    function validPlayer(data, uid) {
+      return data.keys().hasOnly(['uid', 'name', 'score', 'streak', 'joinedAt', 'lastSeenAt']) &&
+        data.keys().hasAll(['uid', 'name', 'score', 'streak', 'joinedAt', 'lastSeenAt']) &&
+        data.uid == uid &&
+        validString(data.name, 1, 32) &&
+        data.score is number &&
+        data.score >= 0 &&
+        data.score <= 1000000 &&
+        data.streak is number &&
+        data.streak >= 0 &&
+        data.streak <= 500 &&
+        data.joinedAt is timestamp &&
+        data.lastSeenAt is timestamp;
+    }
+
+    function validPlayerCreate(code, uid) {
+      return exists(sessionPath(code)) &&
+        get(sessionPath(code)).data.status != 'ended' &&
+        request.auth.uid == uid &&
+        validPlayer(request.resource.data, uid) &&
+        request.resource.data.joinedAt == request.time &&
+        request.resource.data.lastSeenAt == request.time;
+    }
+
+    function validPlayerUpdate(uid) {
+      return request.auth.uid == uid &&
+        validPlayer(request.resource.data, uid) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.joinedAt == resource.data.joinedAt &&
+        request.resource.data.lastSeenAt == request.time;
+    }
+
+    function validInstructorScoreUpdate(code, uid) {
+      return isInstructor(code) &&
+        validPlayer(request.resource.data, uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score', 'streak']) &&
+        request.resource.data.uid == resource.data.uid &&
+        request.resource.data.name == resource.data.name &&
+        request.resource.data.joinedAt == resource.data.joinedAt &&
+        request.resource.data.lastSeenAt == resource.data.lastSeenAt &&
+        request.resource.data.score >= resource.data.score;
+    }
+
+    function validAnswerValue(value) {
+      return value is bool ||
+        (value is number && value >= 0 && value <= 20) ||
+        (value is string && value.size() <= 160) ||
+        (value is list && value.size() <= 8);
+    }
+
+    function validAnswer(data) {
+      return data.keys().hasOnly(['uid', 'questionId', 'questionType', 'value', 'submittedAt']) &&
+        data.keys().hasAll(['uid', 'questionId', 'questionType', 'value', 'submittedAt']) &&
+        data.uid == request.auth.uid &&
+        validString(data.questionId, 1, 80) &&
+        validQuestionType(data.questionType) &&
+        validAnswerValue(data.value) &&
+        data.submittedAt is timestamp;
+    }
+
+    function validAnswerCreate(code) {
+      return exists(sessionPath(code)) &&
+        get(sessionPath(code)).data.status == 'question-open' &&
+        get(sessionPath(code)).data.currentQuestionId == request.resource.data.questionId &&
+        validAnswer(request.resource.data) &&
+        request.resource.data.submittedAt == request.time;
+    }
+
+    match /sessions/{code} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && validSessionCreate(code);
+      allow update: if isAuthenticated() &&
+        resource.data.instructorUid == request.auth.uid &&
+        validSessionUpdate();
+      allow delete: if false;
+
+      match /players/{uid} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && validPlayerCreate(code, uid);
+        allow update: if isAuthenticated() && (validPlayerUpdate(uid) || validInstructorScoreUpdate(code, uid));
+        allow delete: if isAuthenticated() && request.auth.uid == uid;
+      }
+
+      match /answers/{answerId} {
+        allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isInstructor(code));
+        allow create: if isAuthenticated() && validAnswerCreate(code);
+        allow update, delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

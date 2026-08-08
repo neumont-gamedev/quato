@@ -59,6 +59,19 @@ export class MarkdownPresentationLoader {
       }
 
       slides.append(section);
+
+      if (questionReference) {
+        const leaderboardSection = document.createElement("section");
+        leaderboardSection.dataset.leaderboardSlide = "true";
+        leaderboardSection.dataset.afterQuestionId = questionReference[1];
+        leaderboardSection.innerHTML = `
+          <div class="leaderboard-stage leaderboard-stage--empty">
+            <p>Leaderboard</p>
+            <h2>Reveal the question to update standings.</h2>
+          </div>
+        `;
+        slides.append(leaderboardSection);
+      }
     });
 
     if (!slides.querySelector("#final-score")) {

@@ -10,7 +10,13 @@ export class RevealIntegration {
   constructor(private readonly quizEngine: QuizEngine) {}
 
   async initialize(): Promise<void> {
-    this.deck = new Reveal({
+    const revealRoot = document.querySelector<HTMLElement>(".reveal");
+
+    if (!revealRoot) {
+      throw new Error("Reveal.js root element was not found.");
+    }
+
+    this.deck = new Reveal(revealRoot, {
       hash: true,
       controls: true,
       progress: true,
@@ -21,13 +27,17 @@ export class RevealIntegration {
       plugins: [Markdown, Highlight, Notes]
     });
 
-    await this.deck.initialize();
+    window.RevealQuizDeck = this.deck;
 
     this.deck.on("slidechanged", (event) => {
       const currentSlide = event.currentSlide as HTMLElement | undefined;
       this.quizEngine.handleSlideChanged(currentSlide);
+      window.setTimeout(() => {
+        this.quizEngine.handleSlideChanged(this.deck?.getCurrentSlide() as HTMLElement | undefined);
+      }, 250);
     });
 
+    await this.deck.initialize();
     this.quizEngine.handleSlideChanged(this.deck.getCurrentSlide() as HTMLElement | undefined);
   }
 }

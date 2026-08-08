@@ -24,7 +24,7 @@ declare module "reveal.js" {
   }
 
   export default class Reveal {
-    constructor(options?: RevealOptions);
+    constructor(revealElement?: Element, options?: RevealOptions);
     initialize(): Promise<void>;
     on(eventName: "slidechanged", callback: (event: RevealSlideEvent) => void): void;
     getCurrentSlide(): Element;
@@ -44,4 +44,8 @@ declare module "reveal.js/plugin/highlight/highlight.esm.js" {
 declare module "reveal.js/plugin/notes/notes.esm.js" {
   const Notes: unknown;
   export default Notes;
+}
+
+interface Window {
+  RevealQuizDeck?: import("reveal.js").default;
 }

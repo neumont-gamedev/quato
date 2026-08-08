@@ -4,6 +4,7 @@ import "reveal.js/plugin/highlight/monokai.css";
 import "../styles/quiz.css";
 import "../styles/game-hud.css";
 import "../styles/generator.css";
+import "../styles/classroom.css";
 
 import { RevealIntegration } from "./presentation/RevealIntegration";
 import { firebaseApp } from "./firebase";
@@ -15,14 +16,17 @@ import {
   QuestionGenerationStudio,
   readGeneratedDraft
 } from "./instructor/QuestionGenerationStudio";
+import { InstructorController } from "./instructor/InstructorController";
+import { StudentClient } from "./student/StudentClient";
 
 async function bootstrap() {
   void firebaseApp;
 
   const hud = document.querySelector<HTMLElement>("#game-hud");
   const slides = document.querySelector<HTMLElement>("#slides");
+  const classroomPanel = document.querySelector<HTMLElement>("#classroom-panel");
 
-  if (!hud || !slides) {
+  if (!hud || !slides || !classroomPanel) {
     throw new Error("Application shell is missing required elements.");
   }
 
@@ -31,10 +35,21 @@ async function bootstrap() {
 
   if (options.mode === "generator") {
     hud.remove();
+    classroomPanel.remove();
     document.querySelector(".reveal")?.remove();
     const generatorRoot = document.createElement("main");
     document.body.append(generatorRoot);
     new QuestionGenerationStudio(generatorRoot).mount();
+    return;
+  }
+
+  if (options.mode === "student") {
+    hud.remove();
+    classroomPanel.remove();
+    document.querySelector(".reveal")?.remove();
+    const studentRoot = document.createElement("main");
+    document.body.append(studentRoot);
+    new StudentClient(studentRoot).mount(options.code);
     return;
   }
 
@@ -67,8 +82,16 @@ async function bootstrap() {
     return;
   }
 
-  const engine = new QuizEngine(result.data, hud, document.querySelector("#final-score"));
+  const instructor = new InstructorController(result.data, classroomPanel);
+  instructor.mount();
+
+  const engine = new QuizEngine(result.data, hud, document.querySelector("#final-score"), {
+    onActiveQuestionChange: (question, questionIndex, currentSlide) => {
+      void instructor.handleQuestionChanged(question, questionIndex, currentSlide);
+    }
+  });
   engine.mount();
+  instructor.setCurrentSlideSync(() => engine.syncCurrentSlideFromDocument());
 
   const reveal = new RevealIntegration(engine);
   await reveal.initialize();
@@ -80,12 +103,14 @@ function readAuthoringOptions() {
   const quiz = params.get("quiz") ?? "example";
   const theme = params.get("theme") ?? "midnight";
   const mode = params.get("mode") ?? "deck";
+  const code = params.get("code") ?? "";
 
   return {
     presentationUrl: `/presentations/${sanitizeSlug(presentation)}.md`,
     quizUrl: `/quizzes/${sanitizeSlug(quiz)}.json`,
     theme: sanitizeSlug(theme),
-    mode: sanitizeSlug(mode)
+    mode: sanitizeSlug(mode),
+    code: sanitizeSlug(code)
   };
 }
 
