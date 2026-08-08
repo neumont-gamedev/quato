@@ -1,11 +1,12 @@
 .classroom-panel {
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  top: 16px;
   z-index: 25;
   display: grid;
   gap: 10px;
   width: min(360px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
   padding: 12px;
   border: 1px solid var(--rq-line);
   border-radius: 8px;
@@ -14,10 +15,55 @@
   box-shadow: 0 14px 36px rgb(0 0 0 / 32%);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: auto;
 }
 
-.classroom-panel:empty {
+.classroom-panel:empty,
+.classroom-panel.is-hidden {
   display: none;
+}
+
+.classroom-info-toggle {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 26;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid var(--rq-line);
+  border-radius: 50%;
+  background: rgb(5 8 14 / 90%);
+  color: var(--rq-text);
+  font:
+    900 1rem/1 Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 28%);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.classroom-info-toggle:hover,
+.classroom-info-toggle:focus-visible,
+.classroom-info-toggle.is-active {
+  border-color: var(--rq-cyan);
+  background: rgb(34 211 238 / 16%);
+  color: var(--rq-cyan);
+}
+
+.classroom-info-toggle:hover,
+.classroom-info-toggle:focus-visible {
+  transform: translateY(-1px);
 }
 
 .classroom-primary,

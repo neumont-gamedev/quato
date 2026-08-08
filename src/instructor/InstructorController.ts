@@ -17,6 +17,8 @@ export class InstructorController {
   private slideChangeVersion = 0;
   private slideSync: Promise<void> = Promise.resolve();
   private currentSlideSync?: () => { question: QuizQuestion | undefined; questionIndex: number };
+  private infoToggle?: HTMLButtonElement;
+  private isPanelVisible = true;
   private readonly handleKeyboardLock = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement | null;
     const isEditable =
@@ -45,6 +47,7 @@ export class InstructorController {
 
   mount(): void {
     this.panel.hidden = false;
+    this.createInfoToggle();
     window.addEventListener("keydown", this.handleKeyboardLock, { capture: true });
     this.render();
   }
@@ -273,6 +276,7 @@ export class InstructorController {
         <button class="classroom-primary" type="button" data-action="start">Start Live Session</button>
       `;
       this.bindPanelActions();
+      this.applyPanelVisibility();
       return;
     }
 
@@ -298,6 +302,31 @@ export class InstructorController {
       <p class="classroom-url">${joinUrl}</p>
     `;
     this.bindPanelActions();
+    this.applyPanelVisibility();
+  }
+
+  private createInfoToggle(): void {
+    if (this.infoToggle) {
+      return;
+    }
+
+    this.infoToggle = document.createElement("button");
+    this.infoToggle.className = "classroom-info-toggle";
+    this.infoToggle.type = "button";
+    this.infoToggle.textContent = "i";
+    this.infoToggle.addEventListener("click", () => {
+      this.isPanelVisible = !this.isPanelVisible;
+      this.applyPanelVisibility();
+    });
+    document.body.append(this.infoToggle);
+    this.applyPanelVisibility();
+  }
+
+  private applyPanelVisibility(): void {
+    this.panel.classList.toggle("is-hidden", !this.isPanelVisible);
+    this.infoToggle?.classList.toggle("is-active", this.isPanelVisible);
+    this.infoToggle?.setAttribute("aria-label", `${this.isPanelVisible ? "Hide" : "Show"} instructor information panel`);
+    this.infoToggle?.setAttribute("aria-expanded", String(this.isPanelVisible));
   }
 
   private createLeaderboard(): string {
