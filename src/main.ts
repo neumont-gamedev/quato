@@ -6,6 +6,7 @@ import "../styles/game-hud.css";
 import "../styles/generator.css";
 
 import { RevealIntegration } from "./presentation/RevealIntegration";
+import { firebaseApp } from "./firebase";
 import { MarkdownPresentationLoader } from "./presentation/MarkdownPresentationLoader";
 import { QuizEngine } from "./quiz/QuizEngine";
 import { QuizLoader } from "./quiz/QuizLoader";
@@ -16,6 +17,8 @@ import {
 } from "./instructor/QuestionGenerationStudio";
 
 async function bootstrap() {
+  void firebaseApp;
+
   const hud = document.querySelector<HTMLElement>("#game-hud");
   const slides = document.querySelector<HTMLElement>("#slides");
 
