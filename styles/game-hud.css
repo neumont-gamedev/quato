@@ -3,7 +3,7 @@
   z-index: 20;
   top: 16px;
   left: 50%;
-  display: grid;
+  display: none;
   grid-template-columns: repeat(4, minmax(92px, 1fr));
   gap: 8px;
   width: min(720px, calc(100vw - 32px));

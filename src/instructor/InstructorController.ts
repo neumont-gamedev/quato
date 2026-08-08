@@ -220,7 +220,6 @@ export class InstructorController {
     if (!this.session) {
       this.panel.innerHTML = `
         <button class="classroom-primary" type="button" data-action="start">Start Live Session</button>
-        <a class="classroom-link" href="/?mode=student" target="_blank" rel="noreferrer">Student View</a>
       `;
       this.bindPanelActions();
       return;

@@ -17,6 +17,7 @@ import {
   readGeneratedDraft
 } from "./instructor/QuestionGenerationStudio";
 import { InstructorController } from "./instructor/InstructorController";
+import { InstructorSetup } from "./instructor/InstructorSetup";
 import { StudentClient } from "./student/StudentClient";
 
 async function bootstrap() {
@@ -32,6 +33,16 @@ async function bootstrap() {
 
   const options = readAuthoringOptions();
   document.body.dataset.theme = options.theme;
+
+  if (options.mode === "setup") {
+    hud.remove();
+    classroomPanel.remove();
+    document.querySelector(".reveal")?.remove();
+    const setupRoot = document.createElement("main");
+    document.body.append(setupRoot);
+    new InstructorSetup(setupRoot).mount();
+    return;
+  }
 
   if (options.mode === "generator") {
     hud.remove();
@@ -101,8 +112,8 @@ function readAuthoringOptions() {
   const params = new URLSearchParams(window.location.search);
   const presentation = params.get("presentation") ?? "example";
   const quiz = params.get("quiz") ?? "example";
-  const theme = params.get("theme") ?? "midnight";
-  const mode = params.get("mode") ?? "deck";
+  const theme = params.get("theme") ?? "signal";
+  const mode = params.get("mode") ?? (params.has("presentation") || params.has("quiz") ? "deck" : "setup");
   const code = params.get("code") ?? "";
 
   return {
