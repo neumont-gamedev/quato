@@ -17,6 +17,26 @@ export class InstructorController {
   private slideChangeVersion = 0;
   private slideSync: Promise<void> = Promise.resolve();
   private currentSlideSync?: () => { question: QuizQuestion | undefined; questionIndex: number };
+  private readonly handleKeyboardLock = (event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement | null;
+    const isEditable =
+      target?.tagName === "INPUT" ||
+      target?.tagName === "TEXTAREA" ||
+      target?.tagName === "SELECT" ||
+      target?.isContentEditable;
+
+    if (isEditable || event.repeat || (event.key !== " " && event.key !== "Spacebar")) {
+      return;
+    }
+
+    if (this.session?.status !== "question-open" || !this.activeQuestion) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    void this.revealQuestion();
+  };
 
   constructor(
     private readonly quiz: QuizFile,
@@ -25,6 +45,7 @@ export class InstructorController {
 
   mount(): void {
     this.panel.hidden = false;
+    window.addEventListener("keydown", this.handleKeyboardLock, { capture: true });
     this.render();
   }
 
@@ -147,6 +168,7 @@ export class InstructorController {
     }
 
     if (this.session.status === "revealed" && this.session.revealedAnswer?.questionId === current.question.id) {
+      this.renderQuestionReveal(current.question);
       return;
     }
 
@@ -164,6 +186,7 @@ export class InstructorController {
       })
     );
     await this.service.revealQuestion(this.session.code, current.question);
+    this.renderQuestionReveal(current.question);
     this.render();
   }
 
@@ -178,9 +201,34 @@ export class InstructorController {
     this.unsubscribers.push(
       this.service.listenSession(code, (session) => {
         this.session = session;
+        if (session?.status === "revealed" && this.activeQuestion) {
+          this.renderQuestionReveal(this.activeQuestion);
+        }
         this.render();
       })
     );
+  }
+
+  private renderQuestionReveal(question: QuizQuestion): void {
+    const currentSlide = document.querySelector<HTMLElement>("section.present");
+
+    if (!currentSlide || currentSlide.dataset.questionId !== question.id) {
+      return;
+    }
+
+    currentSlide.classList.add("quiz-slide--revealed");
+    currentSlide.querySelectorAll<HTMLElement>(".answer-option--display").forEach((option) => {
+      const isCorrect = option.dataset.answerIndex === getCorrectAnswerIndex(question);
+      option.classList.toggle("is-correct-answer", isCorrect);
+      option.classList.toggle("is-muted-answer", !isCorrect);
+    });
+
+    if (question.type === "fill-blank") {
+      const blank = currentSlide.querySelector<HTMLElement>(".fill-blank--display span");
+      if (blank) {
+        blank.textContent = question.answers.join(" / ");
+      }
+    }
   }
 
   private listenPlayers(code: string): void {
@@ -408,6 +456,18 @@ function escapePanelText(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function getCorrectAnswerIndex(question: QuizQuestion): string {
+  switch (question.type) {
+    case "multiple-choice":
+    case "code-question":
+      return String(question.correct);
+    case "true-false":
+      return question.answer ? "0" : "1";
+    case "fill-blank":
+      return "";
+  }
 }
 
 function createAnswerDistribution(question: QuizQuestion, answers: ClassroomAnswer[]): Array<{

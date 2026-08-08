@@ -201,6 +201,21 @@ body {
   cursor: default;
 }
 
+.answer-option--display.is-correct-answer {
+  border-color: rgb(34 197 94 / 72%);
+  background: rgb(34 197 94 / 16%);
+  box-shadow: inset 0 0 0 2px rgb(34 197 94 / 28%);
+}
+
+.answer-option--display.is-correct-answer .answer-option__key {
+  background: var(--rq-green);
+  color: #061016;
+}
+
+.answer-option--display.is-muted-answer {
+  opacity: 0.46;
+}
+
 .answer-option input {
   position: absolute;
   opacity: 0;
@@ -243,6 +258,12 @@ body {
   background: var(--rq-panel);
   color: var(--rq-cyan);
   font-size: clamp(2rem, 8vh, 4rem);
+}
+
+.quiz-slide--revealed .fill-blank--display {
+  border-color: rgb(34 197 94 / 72%);
+  background: rgb(34 197 94 / 16%);
+  color: var(--rq-green);
 }
 
 .quiz-actions {

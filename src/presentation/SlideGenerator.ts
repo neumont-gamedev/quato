@@ -53,7 +53,7 @@ function renderAnswerList(answers: string[]): string {
       ${answers
         .map(
           (answer, index) => `
-            <div class="answer-option answer-option--display">
+            <div class="answer-option answer-option--display" data-answer-index="${index}">
               <span class="answer-option__key">${String.fromCharCode(65 + index)}</span>
               <span>${escapeHtml(answer)}</span>
             </div>
