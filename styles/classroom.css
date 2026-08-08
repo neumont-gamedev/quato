@@ -435,6 +435,10 @@
   background: rgb(255 92 122 / 12%);
 }
 
+.reveal .slides section[data-leaderboard-slide="true"] {
+  top: clamp(16px, 4vh, 36px) !important;
+}
+
 .leaderboard-stage {
   display: grid;
   gap: 18px;
