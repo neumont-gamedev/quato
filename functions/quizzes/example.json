@@ -1,0 +1,43 @@
+{
+  "title": "C++ Smart Pointers",
+  "description": "Phase 1 demo quiz for RevealQuiz.",
+  "questions": [
+    {
+      "id": "q1",
+      "type": "multiple-choice",
+      "question": "Which smart pointer represents exclusive ownership?",
+      "answers": ["std::shared_ptr", "std::weak_ptr", "std::unique_ptr", "Raw pointer"],
+      "correct": 2,
+      "points": 100,
+      "explanation": "std::unique_ptr owns an object exclusively and releases it when the pointer is destroyed."
+    },
+    {
+      "id": "q2",
+      "type": "true-false",
+      "question": "std::shared_ptr uses reference counting to manage shared ownership.",
+      "answer": true,
+      "points": 100,
+      "explanation": "A shared object remains alive while at least one std::shared_ptr owns it."
+    },
+    {
+      "id": "q3",
+      "type": "fill-blank",
+      "question": "A non-owning observer for an object managed by std::shared_ptr is called ____.",
+      "answers": ["std::weak_ptr", "weak_ptr"],
+      "caseSensitive": false,
+      "points": 100,
+      "explanation": "std::weak_ptr can observe a shared object without increasing its reference count."
+    },
+    {
+      "id": "q4",
+      "type": "code-question",
+      "question": "What does this code print?",
+      "language": "cpp",
+      "code": "#include <memory>\n#include <iostream>\n\nint main() {\n    auto value = std::make_unique<int>(42);\n    std::cout << *value;\n}",
+      "answers": ["42", "0", "A compiler error", "The address of value"],
+      "correct": 0,
+      "points": 150,
+      "explanation": "std::make_unique<int>(42) creates an int initialized to 42, and dereferencing the pointer prints that value."
+    }
+  ]
+}

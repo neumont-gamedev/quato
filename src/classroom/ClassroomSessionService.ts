@@ -12,10 +12,12 @@ import {
   where,
   type Unsubscribe
 } from "firebase/firestore";
-import { auth, db } from "../firebase";
+import { httpsCallable } from "firebase/functions";
+import { auth, db, functions } from "../firebase";
 import type { PublicQuestion, QuizFile, QuizQuestion } from "../types/Question";
-import { toPublicQuestion, toRevealedAnswer } from "../types/Question";
+import { toPublicQuestion } from "../types/Question";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, SessionStatus } from "./types";
+import type { ClassroomScoreAward } from "./ClassroomScoring";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -29,12 +31,13 @@ export class ClassroomSessionService {
     return credential.user;
   }
 
-  async createSession(quiz: QuizFile): Promise<ClassroomSession> {
+  async createSession(quiz: QuizFile, quizId = "example"): Promise<ClassroomSession> {
     const user = await this.ensureAnonymousUser();
     const code = await this.createUniqueCode();
     const session: ClassroomSession = {
       code,
       title: quiz.title,
+      quizId,
       instructorUid: user.uid,
       status: "lobby",
       currentQuestionId: null,
@@ -106,12 +109,13 @@ export class ClassroomSessionService {
     });
   }
 
-  async revealQuestion(code: string, question: QuizQuestion): Promise<void> {
-    await updateDoc(doc(db, "sessions", code), {
-      status: "revealed" satisfies SessionStatus,
-      revealedAnswer: toRevealedAnswer(question),
-      updatedAt: serverTimestamp()
-    });
+  async scoreAndRevealQuestion(code: string, questionId: string): Promise<ClassroomScoreAward[]> {
+    const reveal = httpsCallable<
+      { code: string; questionId: string },
+      { awards?: ClassroomScoreAward[] }
+    >(functions, "revealQuestion");
+    const result = await reveal({ code: normalizeCode(code), questionId });
+    return result.data.awards ?? [];
   }
 
   async setStatus(code: string, status: SessionStatus): Promise<void> {

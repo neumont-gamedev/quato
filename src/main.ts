@@ -93,7 +93,7 @@ async function bootstrap() {
     return;
   }
 
-  const instructor = new InstructorController(result.data, classroomPanel);
+  const instructor = new InstructorController(result.data, classroomPanel, options.quizId);
   instructor.mount();
 
   const engine = new QuizEngine(result.data, hud, document.querySelector("#final-score"), {
@@ -119,6 +119,7 @@ function readAuthoringOptions() {
   return {
     presentationUrl: `/presentations/${sanitizeSlug(presentation)}.md`,
     quizUrl: `/quizzes/${sanitizeSlug(quiz)}.json`,
+    quizId: sanitizeSlug(quiz),
     theme: sanitizeSlug(theme),
     mode: sanitizeSlug(mode),
     code: sanitizeSlug(code)

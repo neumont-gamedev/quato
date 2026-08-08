@@ -10,6 +10,7 @@ service cloud.firestore {
     // Fields:
     //   - code: string, required, immutable, 6 chars.
     //   - title: string, required, 1..120 chars.
+    //   - quizId: string, required, immutable, 1..80 chars.
     //   - instructorUid: string, required, immutable owner UID.
     //   - status: string, required enum lobby/presenting/question-open/locked/revealed/leaderboard/ended.
     //   - currentQuestionId: string or null, required, <=80 chars.
@@ -110,6 +111,7 @@ service cloud.firestore {
       return data.keys().hasOnly([
           'code',
           'title',
+          'quizId',
           'instructorUid',
           'status',
           'currentQuestionId',
@@ -126,6 +128,7 @@ service cloud.firestore {
         data.keys().hasAll([
           'code',
           'title',
+          'quizId',
           'instructorUid',
           'status',
           'currentQuestionId',
@@ -141,6 +144,7 @@ service cloud.firestore {
         ]) &&
         validString(data.code, 6, 6) &&
         validString(data.title, 1, 120) &&
+        validString(data.quizId, 1, 80) &&
         validString(data.instructorUid, 1, 128) &&
         validStatus(data.status) &&
         validOptionalStringOrNull(data.currentQuestionId, 80) &&
@@ -175,9 +179,20 @@ service cloud.firestore {
     function validSessionUpdate() {
       return validSession(request.resource.data) &&
         request.resource.data.code == resource.data.code &&
+        request.resource.data.quizId == resource.data.quizId &&
         request.resource.data.instructorUid == resource.data.instructorUid &&
         request.resource.data.createdAt == resource.data.createdAt &&
         request.resource.data.updatedAt == request.time;
+    }
+
+    function validInstructorSessionUpdate() {
+      return validSessionUpdate() &&
+        request.resource.data.status != 'revealed' &&
+        (request.resource.data.status != 'leaderboard' ||
+          (resource.data.status in ['revealed', 'leaderboard'] &&
+            request.resource.data.revealedAnswer == resource.data.revealedAnswer)) &&
+        (request.resource.data.revealedAnswer == null ||
+          request.resource.data.revealedAnswer == resource.data.revealedAnswer);
     }
 
     function validPlayer(data, uid) {
@@ -209,18 +224,9 @@ service cloud.firestore {
         validPlayer(request.resource.data, uid) &&
         request.resource.data.uid == resource.data.uid &&
         request.resource.data.joinedAt == resource.data.joinedAt &&
+        request.resource.data.score == resource.data.score &&
+        request.resource.data.streak == resource.data.streak &&
         request.resource.data.lastSeenAt == request.time;
-    }
-
-    function validInstructorScoreUpdate(code, uid) {
-      return isInstructor(code) &&
-        validPlayer(request.resource.data, uid) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score', 'streak']) &&
-        request.resource.data.uid == resource.data.uid &&
-        request.resource.data.name == resource.data.name &&
-        request.resource.data.joinedAt == resource.data.joinedAt &&
-        request.resource.data.lastSeenAt == resource.data.lastSeenAt &&
-        request.resource.data.score >= resource.data.score;
     }
 
     function validAnswerValue(value) {
@@ -253,13 +259,13 @@ service cloud.firestore {
       allow create: if isAuthenticated() && validSessionCreate(code);
       allow update: if isAuthenticated() &&
         resource.data.instructorUid == request.auth.uid &&
-        validSessionUpdate();
+        validInstructorSessionUpdate();
       allow delete: if false;
 
       match /players/{uid} {
         allow read: if isAuthenticated();
         allow create: if isAuthenticated() && validPlayerCreate(code, uid);
-        allow update: if isAuthenticated() && (validPlayerUpdate(uid) || validInstructorScoreUpdate(code, uid));
+        allow update: if isAuthenticated() && validPlayerUpdate(uid);
         allow delete: if isAuthenticated() && request.auth.uid == uid;
       }
 

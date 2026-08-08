@@ -5,6 +5,7 @@ export type SessionStatus = "lobby" | "presenting" | "question-open" | "locked" 
 export interface ClassroomSession {
   code: string;
   title: string;
+  quizId: string;
   instructorUid: string;
   status: SessionStatus;
   currentQuestionId: string | null;

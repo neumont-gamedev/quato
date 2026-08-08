@@ -1,6 +1,6 @@
 import type { Unsubscribe } from "firebase/firestore";
 import { createLeaderboardEntries } from "../classroom/Leaderboard";
-import { scoreQuestionForPlayers, type ClassroomScoreAward } from "../classroom/ClassroomScoring";
+import type { ClassroomScoreAward } from "../classroom/ClassroomScoring";
 import { ClassroomSessionService } from "../classroom/ClassroomSessionService";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession } from "../classroom/types";
 import type { QuizFile, QuizQuestion } from "../types/Question";
@@ -42,7 +42,8 @@ export class InstructorController {
 
   constructor(
     private readonly quiz: QuizFile,
-    private readonly panel: HTMLElement
+    private readonly panel: HTMLElement,
+    private readonly quizId = "example"
   ) {}
 
   mount(): void {
@@ -113,7 +114,7 @@ export class InstructorController {
 
   private async startSession(): Promise<void> {
     this.syncActiveQuestionFromDeck();
-    this.session = await this.service.createSession(this.quiz);
+    this.session = await this.service.createSession(this.quiz, this.quizId);
     this.listenSession(this.session.code);
     this.listenPlayers(this.session.code);
 
@@ -175,20 +176,7 @@ export class InstructorController {
       return;
     }
 
-    this.awards = scoreQuestionForPlayers({
-      question: current.question,
-      answers: this.answers,
-      players: this.players,
-      questionStartedAt: this.session.questionStartedAt
-    });
-
-    await Promise.all(
-      this.awards.map((award) => {
-        const player = this.players.find((candidate) => candidate.uid === award.uid);
-        return player ? this.service.updatePlayerScore(this.session!.code, player, award.score, award.streak) : undefined;
-      })
-    );
-    await this.service.revealQuestion(this.session.code, current.question);
+    this.awards = await this.service.scoreAndRevealQuestion(this.session.code, current.question.id);
     this.renderQuestionReveal(current.question);
     this.render();
   }
