@@ -1,6 +1,6 @@
 import type { PublicQuestion, QuestionType, RevealedAnswer } from "../types/Question";
 
-export type SessionStatus = "lobby" | "presenting" | "question-open" | "locked" | "revealed" | "ended";
+export type SessionStatus = "lobby" | "presenting" | "question-open" | "locked" | "revealed" | "leaderboard" | "ended";
 
 export interface ClassroomSession {
   code: string;

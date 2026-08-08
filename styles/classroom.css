@@ -406,6 +406,35 @@
   font-size: 1.4rem;
 }
 
+.student-answer-result {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 7%);
+}
+
+.student-answer-result strong {
+  color: var(--rq-text);
+  font-size: 1.35rem;
+}
+
+.student-answer-result span {
+  color: var(--rq-muted);
+}
+
+.student-answer-result.is-correct {
+  border-color: rgb(34 197 94 / 52%);
+  background: rgb(34 197 94 / 12%);
+}
+
+.student-answer-result.is-incorrect,
+.student-answer-result.is-missed {
+  border-color: rgb(255 92 122 / 52%);
+  background: rgb(255 92 122 / 12%);
+}
+
 .leaderboard-stage {
   display: grid;
   gap: 18px;

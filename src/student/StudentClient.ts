@@ -1,7 +1,7 @@
 import type { Unsubscribe } from "firebase/firestore";
 import { createLeaderboardEntries } from "../classroom/Leaderboard";
 import { ClassroomSessionService, normalizeCode, renderStudentAnswer } from "../classroom/ClassroomSessionService";
-import type { ClassroomPlayer, ClassroomSession } from "../classroom/types";
+import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession } from "../classroom/types";
 import type { PublicQuestion } from "../types/Question";
 import { escapeHtml } from "../questions/QuestionRenderer";
 
@@ -16,6 +16,7 @@ export class StudentClient {
   private unsubscribePlayers?: Unsubscribe;
   private timerId?: number;
   private submittedQuestionId: string | null = null;
+  private submittedAnswer: { questionId: string; value: ClassroomAnswer["value"] } | null = null;
 
   constructor(private readonly root: HTMLElement) {}
 
@@ -81,7 +82,7 @@ export class StudentClient {
     this.unsubscribePlayers = this.service.listenPlayers(this.code, (players) => {
       this.players = players;
 
-      if (this.session?.status === "revealed") {
+      if (this.session?.status === "revealed" || this.session?.status === "leaderboard") {
         this.renderSession();
       }
     });
@@ -112,6 +113,12 @@ export class StudentClient {
     if (!this.session.activeQuestion || this.session.status === "lobby" || this.session.status === "presenting") {
       this.clearTimer();
       this.renderWaiting();
+      return;
+    }
+
+    if (this.session.status === "leaderboard") {
+      this.clearTimer();
+      this.renderLeaderboardScreen();
       return;
     }
 
@@ -153,6 +160,7 @@ export class StudentClient {
         <h1>${heading}</h1>
         <p>${statusText}</p>
         ${this.renderPlayerScore()}
+        ${isRevealed ? this.renderAnswerResult() : ""}
         ${
           isRevealed && revealedAnswer
             ? `
@@ -195,12 +203,17 @@ export class StudentClient {
         return;
       }
 
+      const submittedValue = renderStudentAnswer(question, new FormData(form));
       await this.service.submitAnswer(this.code, {
         questionId: question.id,
         questionType: question.type,
-        value: renderStudentAnswer(question, new FormData(form))
+        value: submittedValue
       });
       this.submittedQuestionId = question.id;
+      this.submittedAnswer = {
+        questionId: question.id,
+        value: submittedValue
+      };
       this.clearTimer();
       this.renderQuestionClosed();
     });
@@ -247,6 +260,40 @@ export class StudentClient {
     `;
   }
 
+  private renderLeaderboardScreen(): void {
+    this.root.innerHTML = `
+      <section class="student-card">
+        <p class="student-eyebrow">${escapeHtml(this.code)}</p>
+        <h1>Leaderboard</h1>
+        ${this.renderPlayerScore()}
+        ${this.renderLeaderboard()}
+      </section>
+    `;
+  }
+
+  private renderAnswerResult(): string {
+    if (!this.session?.activeQuestion || !this.session.revealedAnswer) {
+      return "";
+    }
+
+    if (this.submittedAnswer?.questionId !== this.session.currentQuestionId) {
+      return `<div class="student-answer-result is-missed"><strong>No Answer</strong><span>Answer was not submitted before lock.</span></div>`;
+    }
+
+    const isCorrect = isSubmittedAnswerCorrect(
+      this.session.activeQuestion,
+      this.submittedAnswer.value,
+      this.session.revealedAnswer.correctAnswer
+    );
+
+    return `
+      <div class="student-answer-result ${isCorrect ? "is-correct" : "is-incorrect"}">
+        <strong>${isCorrect ? "Correct" : "Not Quite"}</strong>
+        <span>${isCorrect ? "Nice work." : "Check the correct answer below."}</span>
+      </div>
+    `;
+  }
+
   private startTimer(timeLimit: number): void {
     const timer = this.root.querySelector<HTMLElement>("[data-timer]");
 
@@ -274,6 +321,20 @@ export class StudentClient {
       window.clearInterval(this.timerId);
       this.timerId = undefined;
     }
+  }
+}
+
+function isSubmittedAnswerCorrect(question: PublicQuestion, value: ClassroomAnswer["value"], correctAnswer: string): boolean {
+  switch (question.type) {
+    case "multiple-choice":
+    case "code-question":
+      return question.answers[Number(value)] === correctAnswer;
+    case "true-false":
+      return (value === true ? "True" : "False") === correctAnswer;
+    case "fill-blank":
+      return correctAnswer
+        .split(" / ")
+        .some((answer) => answer.trim().toLowerCase() === String(value).trim().toLowerCase());
   }
 }
 

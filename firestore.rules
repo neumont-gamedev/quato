@@ -11,7 +11,7 @@ service cloud.firestore {
     //   - code: string, required, immutable, 6 chars.
     //   - title: string, required, 1..120 chars.
     //   - instructorUid: string, required, immutable owner UID.
-    //   - status: string, required enum lobby/presenting/question-open/locked/revealed/ended.
+    //   - status: string, required enum lobby/presenting/question-open/locked/revealed/leaderboard/ended.
     //   - currentQuestionId: string or null, required, <=80 chars.
     //   - currentQuestionIndex: number, required, 0..500.
     //   - totalQuestions: number, required, 0..500.
@@ -67,7 +67,7 @@ service cloud.firestore {
     }
 
     function validStatus(status) {
-      return status in ['lobby', 'presenting', 'question-open', 'locked', 'revealed', 'ended'];
+      return status in ['lobby', 'presenting', 'question-open', 'locked', 'revealed', 'leaderboard', 'ended'];
     }
 
     function validQuestionType(type) {
@@ -103,7 +103,7 @@ service cloud.firestore {
     }
 
     function validRevealVisibility(data) {
-      return data.revealedAnswer == null || data.status in ['revealed', 'ended'];
+      return data.revealedAnswer == null || data.status in ['revealed', 'leaderboard', 'ended'];
     }
 
     function validSession(data) {

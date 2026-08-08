@@ -66,7 +66,10 @@ export class InstructorController {
           return;
         }
 
-        if (isLeaderboardSlide && this.session.status === "revealed") {
+        if (isLeaderboardSlide && (this.session.status === "revealed" || this.session.status === "leaderboard")) {
+          if (this.session.status !== "leaderboard") {
+            await this.service.setStatus(this.session.code, "leaderboard");
+          }
           this.renderLeaderboardStage(currentSlide);
           this.render();
           return;
@@ -184,7 +187,7 @@ export class InstructorController {
     this.unsubscribers.push(
       this.service.listenPlayers(code, (players) => {
         this.players = players;
-        if (this.session?.status === "revealed") {
+        if (this.session?.status === "revealed" || this.session?.status === "leaderboard") {
           this.renderLeaderboardStage();
         }
         if (this.session?.status === "ended") {
@@ -242,7 +245,6 @@ export class InstructorController {
         <button type="button" data-action="copy">Copy Link</button>
         <button type="button" data-action="sync">Sync Slide</button>
         <button type="button" data-action="lock" ${this.session.status !== "question-open" ? "disabled" : ""}>Lock</button>
-        <button type="button" data-action="reveal" ${this.session.status === "ended" ? "disabled" : ""}>Reveal</button>
         <button type="button" data-action="end">End</button>
       </div>
       <p class="classroom-url">${joinUrl}</p>
@@ -392,9 +394,6 @@ export class InstructorController {
       void this.syncQuestion();
     });
     this.panel.querySelector<HTMLElement>('[data-action="lock"]')?.addEventListener("click", () => {
-      if (this.session) void this.service.setStatus(this.session.code, "locked");
-    });
-    this.panel.querySelector<HTMLElement>('[data-action="reveal"]')?.addEventListener("click", () => {
       void this.revealQuestion();
     });
     this.panel.querySelector<HTMLElement>('[data-action="end"]')?.addEventListener("click", () => {

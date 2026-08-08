@@ -197,6 +197,10 @@ body {
   background: var(--rq-panel-strong);
 }
 
+.answer-option--display {
+  cursor: default;
+}
+
 .answer-option input {
   position: absolute;
   opacity: 0;
@@ -229,6 +233,16 @@ body {
   background: var(--rq-panel);
   color: var(--rq-text);
   font: inherit;
+}
+
+.fill-blank--display {
+  min-height: clamp(70px, 12vh, 110px);
+  place-items: center;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+  background: var(--rq-panel);
+  color: var(--rq-cyan);
+  font-size: clamp(2rem, 8vh, 4rem);
 }
 
 .quiz-actions {
