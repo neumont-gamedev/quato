@@ -200,9 +200,10 @@ body {
   padding-top: clamp(8px, 1.3vh, 12px);
   border-top: 1px solid rgb(34 197 94 / 32%);
   color: var(--rq-text);
-  font-size: clamp(0.92rem, 2vh, 1.16rem);
-  font-weight: 750;
+  font-size: clamp(0.78rem, 1.65vh, 0.98rem);
+  font-weight: 700;
   line-height: 1.32;
+  overflow-wrap: anywhere;
 }
 
 .answer-option__explanation strong {
@@ -214,6 +215,7 @@ body {
 
 .answer-option__explanation span {
   color: var(--rq-text);
+  font-weight: 700;
 }
 
 .answer-option--display .answer-option__explanation,
@@ -236,6 +238,9 @@ body {
 }
 
 .answer-option--display.is-correct-answer {
+  align-items: start;
+  min-height: clamp(112px, 17vh, 164px);
+  padding-block: clamp(12px, 2vh, 18px);
   border-color: rgb(34 197 94 / 72%);
   background: rgb(34 197 94 / 16%);
   box-shadow: inset 0 0 0 2px rgb(34 197 94 / 28%);
