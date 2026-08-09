@@ -95,7 +95,9 @@ async function bootstrap() {
     return;
   }
 
-  const instructor = new InstructorController(quiz, classroomPanel, options.quizId);
+  const instructor = new InstructorController(quiz, classroomPanel, options.quizId, {
+    autoStartSession: options.autoStartSession
+  });
   instructor.mount();
 
   const engine = new QuizEngine(quiz, hud, null, {
@@ -118,6 +120,7 @@ function readAuthoringOptions() {
   const mode = params.get("mode") ?? (params.has("presentation") || params.has("quiz") ? "deck" : "setup");
   const code = params.get("code") ?? "";
   const gameOverrides = readGameOverrides(params);
+  const autoStartSession = params.get("autoStart") === "1";
 
   return {
     presentationUrl: `/presentations/${sanitizeSlug(presentation)}.md`,
@@ -126,6 +129,7 @@ function readAuthoringOptions() {
     theme: sanitizeSlug(theme),
     mode: sanitizeSlug(mode),
     code: sanitizeSlug(code),
+    autoStartSession,
     gameOverrides
   };
 }

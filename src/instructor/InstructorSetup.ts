@@ -52,7 +52,8 @@ export class InstructorSetup {
         mode: "deck",
         presentation: activity,
         quiz: activity,
-        theme: String(formData.get("theme") ?? "signal")
+        theme: String(formData.get("theme") ?? "signal"),
+        autoStart: "1"
       });
 
       window.location.assign(`/?${params.toString()}#/0`);

@@ -9,6 +9,10 @@ import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, LeaderboardEnt
 import type { QuizFile, QuizQuestion } from "../types/Question";
 import { areAchievementsEnabled, isTeamModeEnabled } from "../quiz/GameRules";
 
+interface InstructorControllerOptions {
+  autoStartSession?: boolean;
+}
+
 export class InstructorController {
   private readonly service = new ClassroomSessionService();
   private session: ClassroomSession | null = null;
@@ -28,6 +32,8 @@ export class InstructorController {
   private leaderboardRankSignature = "";
   private joinQrUrl = "";
   private joinQrDataUrl = "";
+  private isStartingSession = false;
+  private startSessionPromise?: Promise<void>;
   private readonly handleKeyboardLock = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement | null;
     const isEditable =
@@ -52,14 +58,19 @@ export class InstructorController {
   constructor(
     private readonly quiz: QuizFile,
     private readonly panel: HTMLElement,
-    private readonly quizId = "example"
+    private readonly quizId = "example",
+    private readonly options: InstructorControllerOptions = {}
   ) {}
 
   mount(): void {
     this.panel.hidden = false;
     this.createInfoToggle();
     window.addEventListener("keydown", this.handleKeyboardLock, { capture: true });
-    this.render();
+    if (this.options.autoStartSession) {
+      void this.startSession();
+    } else {
+      this.render();
+    }
   }
 
   setCurrentSlideSync(syncCurrentSlide: () => { question: QuizQuestion | undefined; questionIndex: number }): void {
@@ -152,24 +163,46 @@ export class InstructorController {
   }
 
   private async startSession(): Promise<void> {
-    this.syncActiveQuestionFromDeck();
-    this.session = await this.service.createSession(this.quiz, this.quizId);
-    this.listenSession(this.session.code);
-    this.listenPlayers(this.session.code);
-
-    if (this.activeQuestion) {
-      await this.service.publishQuestion(
-        this.session.code,
-        this.activeQuestion,
-        this.activeQuestionIndex,
-        this.quiz.questions.length
-      );
-      this.listenAnswers(this.activeQuestion.id);
-    } else {
-      await this.service.markPresenting(this.session.code);
+    if (this.session) {
+      return;
     }
 
-    this.render();
+    if (this.startSessionPromise) {
+      await this.startSessionPromise;
+      return;
+    }
+
+    this.startSessionPromise = this.createSession();
+    await this.startSessionPromise;
+  }
+
+  private async createSession(): Promise<void> {
+    try {
+      this.isStartingSession = true;
+      this.render();
+      this.syncActiveQuestionFromDeck();
+      this.session = await this.service.createSession(this.quiz, this.quizId);
+      this.listenSession(this.session.code);
+      this.listenPlayers(this.session.code);
+
+      if (this.activeQuestion) {
+        await this.service.publishQuestion(
+          this.session.code,
+          this.activeQuestion,
+          this.activeQuestionIndex,
+          this.quiz.questions.length
+        );
+        this.listenAnswers(this.activeQuestion.id);
+      } else {
+        await this.service.markPresenting(this.session.code);
+      }
+
+      this.render();
+    } finally {
+      this.isStartingSession = false;
+      this.startSessionPromise = undefined;
+      this.render();
+    }
   }
 
   private async syncQuestion(): Promise<void> {
@@ -352,7 +385,9 @@ export class InstructorController {
   private render(): void {
     if (!this.session) {
       this.panel.innerHTML = `
-        <button class="classroom-primary" type="button" data-action="start">Start Live Session</button>
+        <button class="classroom-primary" type="button" data-action="start" ${this.isStartingSession ? "disabled" : ""}>
+          ${this.isStartingSession ? "Creating Join Code..." : "Start Live Session"}
+        </button>
       `;
       this.bindPanelActions();
       this.applyPanelVisibility();
@@ -397,13 +432,19 @@ export class InstructorController {
     }
 
     if (!this.session || !joinUrl) {
+      const statusText = this.isStartingSession
+        ? "Creating a join code and QR code..."
+        : "Start the live session to create a join code.";
+      const button = this.isStartingSession
+        ? ""
+        : `<button type="button" data-action="start">Start Live Session</button>`;
       slide.innerHTML = `
         <div class="join-slide">
           <p>Live Session</p>
           <h1>Join The Quiz</h1>
           <div class="join-slide__status">
-            <span>Start the live session to create a join code.</span>
-            <button type="button" data-action="start">Start Live Session</button>
+            <span>${statusText}</span>
+            ${button}
           </div>
         </div>
       `;
