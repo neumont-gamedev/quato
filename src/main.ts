@@ -96,7 +96,7 @@ async function bootstrap() {
   const instructor = new InstructorController(result.data, classroomPanel, options.quizId);
   instructor.mount();
 
-  const engine = new QuizEngine(result.data, hud, document.querySelector("#final-score"), {
+  const engine = new QuizEngine(result.data, hud, null, {
     onActiveQuestionChange: (question, questionIndex, currentSlide) => {
       void instructor.handleQuestionChanged(question, questionIndex, currentSlide);
     }

@@ -55,7 +55,7 @@ export class QuizEngine {
     const questionIndex = this.activeQuestion
       ? this.quiz.questions.findIndex((question) => question.id === this.activeQuestion?.id) + 1
       : 0;
-    const activeQuestionKey = this.activeQuestion?.id ?? "presentation";
+    const activeQuestionKey = getSlideKey(currentSlide, this.activeQuestion);
 
     if (activeQuestionKey !== this.lastActiveQuestionKey) {
       this.lastActiveQuestionKey = activeQuestionKey;
@@ -160,4 +160,20 @@ export class QuizEngine {
       <p>${state.correct} correct out of ${state.totalQuestions} questions answered.</p>
     `;
   }
+}
+
+function getSlideKey(currentSlide: HTMLElement | undefined, activeQuestion: QuizQuestion | undefined): string {
+  if (activeQuestion) {
+    return `question:${activeQuestion.id}`;
+  }
+
+  if (currentSlide?.dataset.leaderboardSlide === "true") {
+    return `leaderboard:${currentSlide.dataset.afterQuestionId ?? ""}`;
+  }
+
+  if (currentSlide?.querySelector("#final-score")) {
+    return "final-results";
+  }
+
+  return "presentation";
 }
