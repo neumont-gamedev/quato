@@ -7,6 +7,7 @@ declare module "reveal.js" {
     initialize(): Promise<void>;
     on(eventName: "slidechanged", callback: (event: RevealSlideEvent) => void): void;
     getCurrentSlide(): Element;
+    layout(): void;
     prev(): void;
   }
 
@@ -29,6 +30,7 @@ declare module "reveal.js" {
     initialize(): Promise<void>;
     on(eventName: "slidechanged", callback: (event: RevealSlideEvent) => void): void;
     getCurrentSlide(): Element;
+    layout(): void;
     prev(): void;
   }
 }

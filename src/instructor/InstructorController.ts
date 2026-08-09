@@ -451,6 +451,7 @@ export class InstructorController {
       slide.querySelector<HTMLElement>('[data-action="start"]')?.addEventListener("click", () => {
         void this.startSession();
       });
+      this.scheduleRevealLayout();
       return;
     }
 
@@ -480,6 +481,8 @@ export class InstructorController {
     if (this.joinQrUrl !== joinUrl || !this.joinQrDataUrl) {
       void this.createJoinQrCode(joinUrl);
     }
+
+    this.scheduleRevealLayout();
   }
 
   private async createJoinQrCode(joinUrl: string): Promise<void> {
@@ -497,6 +500,15 @@ export class InstructorController {
       this.joinQrDataUrl = qrDataUrl;
       this.renderJoinSlide(joinUrl);
     }
+  }
+
+  private scheduleRevealLayout(): void {
+    window.requestAnimationFrame(() => {
+      window.RevealQuizDeck?.layout();
+      window.requestAnimationFrame(() => {
+        window.RevealQuizDeck?.layout();
+      });
+    });
   }
 
   private createInfoToggle(): void {
