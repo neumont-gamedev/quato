@@ -64,7 +64,7 @@ export class InstructorSetup {
         theme: String(formData.get("theme") ?? "signal")
       });
 
-      window.location.assign(`/?${params.toString()}`);
+      window.location.assign(`/?${params.toString()}#/0`);
     });
   }
 
