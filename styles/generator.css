@@ -27,7 +27,7 @@
 
 .generator-panel--review {
   display: grid;
-  grid-template-rows: auto auto minmax(280px, 0.8fr) auto auto;
+  grid-template-rows: auto auto auto minmax(280px, 0.8fr) auto auto;
   gap: 12px;
   min-height: 0;
   padding: 18px;
@@ -205,7 +205,8 @@
   gap: 14px;
 }
 
-.validation-panel {
+.validation-panel,
+.quality-panel {
   min-height: 44px;
   padding: 12px;
   border-radius: 8px;
@@ -214,7 +215,8 @@
   font-size: 0.9rem;
 }
 
-.validation-panel.is-valid {
+.validation-panel.is-valid,
+.quality-panel.is-valid {
   border-left: 5px solid var(--rq-green);
 }
 
@@ -222,7 +224,12 @@
   border-left: 5px solid var(--rq-red);
 }
 
-.validation-panel ul {
+.quality-panel.is-warning {
+  border-left: 5px solid var(--rq-yellow);
+}
+
+.validation-panel ul,
+.quality-panel ul {
   margin: 8px 0 0;
   padding-left: 18px;
 }
@@ -413,6 +420,50 @@
 .question-review-actions button:focus-visible {
   border-color: var(--rq-cyan);
   color: var(--rq-cyan);
+}
+
+.question-revision-box {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rq-line);
+}
+
+.question-revision-box label {
+  display: grid;
+  gap: 6px;
+  color: var(--rq-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.question-revision-box textarea {
+  min-height: 82px;
+  padding: 10px;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+  background: var(--rq-bg);
+  color: var(--rq-text);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  resize: vertical;
+  text-transform: none;
+}
+
+.question-revision-box button {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--rq-cyan);
+  color: #061016;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .json-details {

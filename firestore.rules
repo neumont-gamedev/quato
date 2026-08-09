@@ -60,6 +60,15 @@ service cloud.firestore {
     //   - createdAt: timestamp, required.
     //   - endedAt: timestamp, required.
     //
+    // Collection: users/{uid}/quizBank
+    // Document ID: Firestore generated ID.
+    // Fields:
+    //   - title: string, required, 1..120 chars.
+    //   - description: string, required, <=500 chars.
+    //   - questionCount: number, required, 1..100.
+    //   - quiz: map, required, instructor-owned quiz draft payload with title/questions/game settings.
+    //   - savedAt: timestamp, required, immutable.
+    //
     // ===============================================================
 
     function isAuthenticated() {
@@ -135,6 +144,28 @@ service cloud.firestore {
             )) &&
           (!('bossMultiplier' in game) || (game.bossMultiplier is number && game.bossMultiplier >= 1 && game.bossMultiplier <= 10))
         );
+    }
+
+    function validQuizBankEntry(data) {
+      return data.keys().hasOnly(['title', 'description', 'questionCount', 'quiz', 'savedAt']) &&
+        data.keys().hasAll(['title', 'description', 'questionCount', 'quiz', 'savedAt']) &&
+        validString(data.title, 1, 120) &&
+        data.description is string &&
+        data.description.size() <= 500 &&
+        data.questionCount is number &&
+        data.questionCount >= 1 &&
+        data.questionCount <= 100 &&
+        data.quiz is map &&
+        data.quiz.keys().hasOnly(['title', 'description', 'game', 'questions']) &&
+        data.quiz.keys().hasAll(['title', 'questions']) &&
+        validString(data.quiz.title, 1, 120) &&
+        (!('description' in data.quiz) || data.quiz.description is string && data.quiz.description.size() <= 500) &&
+        (!('game' in data.quiz) || validGameConfig(data.quiz.game)) &&
+        data.quiz.questions is list &&
+        data.quiz.questions.size() >= 1 &&
+        data.quiz.questions.size() <= 100 &&
+        data.quiz.questions.size() == data.questionCount &&
+        data.savedAt is timestamp;
     }
 
     function validRevealVisibility(data) {
@@ -359,6 +390,19 @@ service cloud.firestore {
     match /gradeExports/{code} {
       allow get: if isAuthenticated() && resource.data.instructorUid == request.auth.uid;
       allow list, create, update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read, write: if false;
+
+      match /quizBank/{quizId} {
+        allow read: if isAuthenticated() && request.auth.uid == uid;
+        allow create: if isAuthenticated() &&
+          request.auth.uid == uid &&
+          validQuizBankEntry(request.resource.data) &&
+          request.resource.data.savedAt == request.time;
+        allow update, delete: if false;
+      }
     }
 
     match /{document=**} {

@@ -4,6 +4,7 @@ import type { AiQuestionProvider, QuestionGenerationRequest } from "../ai/types"
 import { ACHIEVEMENTS } from "../classroom/GameMeta";
 import { QuizLoader } from "../quiz/QuizLoader";
 import type { QuestionType, QuizFile, QuizQuestion } from "../types/Question";
+import { QuizBankService, type SavedQuizBankEntry } from "./QuizBankService";
 
 const DRAFT_STORAGE_KEY = "revealquiz.generatedDraft";
 const SAVED_DRAFTS_STORAGE_KEY = "revealquiz.savedDrafts";
@@ -11,8 +12,10 @@ const QUESTION_TYPES: QuestionType[] = ["multiple-choice", "true-false", "fill-b
 
 export class QuestionGenerationStudio {
   private readonly validator = new QuizLoader();
+  private readonly quizBank = new QuizBankService();
   private jsonEditor?: HTMLTextAreaElement;
   private validationPanel?: HTMLElement;
+  private qualityPanel?: HTMLElement;
   private promptPanel?: HTMLTextAreaElement;
   private questionReviewPanel?: HTMLElement;
   private selectedQuestionId?: string;
@@ -58,7 +61,7 @@ export class QuestionGenerationStudio {
           </label>
 
           <label class="generation-form__wide">
-            <span>Import Notes or Slides</span>
+            <span>Generate From Markdown, Notes, or JSON</span>
             <input name="sourceFile" type="file" accept=".txt,.md,.markdown,.json" />
           </label>
 
@@ -113,6 +116,7 @@ export class QuestionGenerationStudio {
         </div>
 
         <div id="validation-panel" class="validation-panel is-empty">No draft generated yet.</div>
+        <div id="quality-panel" class="quality-panel is-empty">Quality checks will appear after validation.</div>
         <div id="question-review-panel" class="question-review-panel is-empty">Generate or paste a valid draft to review questions here.</div>
 
         <details class="json-details" open>
@@ -129,11 +133,12 @@ export class QuestionGenerationStudio {
 
     this.jsonEditor = this.root.querySelector("#json-editor") ?? undefined;
     this.validationPanel = this.root.querySelector("#validation-panel") ?? undefined;
+    this.qualityPanel = this.root.querySelector("#quality-panel") ?? undefined;
     this.promptPanel = this.root.querySelector("#prompt-panel") ?? undefined;
     this.questionReviewPanel = this.root.querySelector("#question-review-panel") ?? undefined;
 
     this.bindEvents();
-    this.renderSavedDraftActions();
+    void this.renderSavedDraftActions();
   }
 
   private bindEvents(): void {
@@ -183,7 +188,7 @@ export class QuestionGenerationStudio {
       }
 
       notesInput.value = await file.text();
-      this.renderGenerationStatus(`Imported ${file.name} into instructor notes.`);
+      this.renderGenerationStatus(`Imported ${file.name}. AI generation will use that content as source material.`);
     });
 
     this.jsonEditor?.addEventListener("input", () => {
@@ -207,6 +212,15 @@ export class QuestionGenerationStudio {
       if (action === "regenerate") {
         if (form) {
           void this.regenerateQuestion(questionId, new FormData(form));
+        }
+        return;
+      }
+
+      if (action === "revise") {
+        if (form) {
+          const instructions =
+            this.questionReviewPanel?.querySelector<HTMLTextAreaElement>("[data-revision-instructions]")?.value ?? "";
+          void this.regenerateQuestion(questionId, new FormData(form), instructions);
         }
         return;
       }
@@ -239,7 +253,7 @@ export class QuestionGenerationStudio {
       const draft = this.validateCurrentDraft();
 
       if (draft) {
-        this.saveDraft(draft);
+        void this.saveDraft(draft);
       }
     });
   }
@@ -312,6 +326,7 @@ export class QuestionGenerationStudio {
       this.renderQuestionReview(validation.data);
       this.validationPanel.className = "validation-panel is-valid";
       this.validationPanel.textContent = `${validation.data.questions.length} draft questions are valid. Review before using live.`;
+      this.renderQualityReport(validation.data);
       return validation.data;
     } catch (error) {
       if (renderErrors) {
@@ -330,6 +345,7 @@ export class QuestionGenerationStudio {
     this.validationPanel.innerHTML = `<strong>Validation failed</strong><ul>${errors
       .map((error) => `<li>${escapeHtml(error)}</li>`)
       .join("")}</ul>`;
+    this.renderQualityReport();
   }
 
   private renderGenerationStatus(message: string, isValid = false): void {
@@ -339,6 +355,31 @@ export class QuestionGenerationStudio {
 
     this.validationPanel.className = `validation-panel ${isValid ? "is-valid" : "is-empty"}`;
     this.validationPanel.textContent = message;
+  }
+
+  private renderQualityReport(quiz?: QuizFile): void {
+    if (!this.qualityPanel) {
+      return;
+    }
+
+    if (!quiz) {
+      this.qualityPanel.className = "quality-panel is-empty";
+      this.qualityPanel.textContent = "Quality checks will appear after validation.";
+      return;
+    }
+
+    const warnings = createQualityWarnings(quiz);
+
+    if (warnings.length === 0) {
+      this.qualityPanel.className = "quality-panel is-valid";
+      this.qualityPanel.textContent = "Quality checks passed: explanations, timing, answer variety, and draft balance look ready for review.";
+      return;
+    }
+
+    this.qualityPanel.className = "quality-panel is-warning";
+    this.qualityPanel.innerHTML = `<strong>Quality checks</strong><ul>${warnings
+      .map((warning) => `<li>${escapeHtml(warning)}</li>`)
+      .join("")}</ul>`;
   }
 
   private renderQuestionReview(quiz: QuizFile): void {
@@ -383,6 +424,13 @@ export class QuestionGenerationStudio {
           <button type="button" data-review-action="boss" data-question-id="${escapeHtml(selectedQuestion.id)}">${isBossQuestion(selectedQuestion) ? "Remove Boss" : "Mark Boss"}</button>
           <button type="button" data-review-action="duplicate" data-question-id="${escapeHtml(selectedQuestion.id)}">Duplicate</button>
           <button type="button" data-review-action="remove" data-question-id="${escapeHtml(selectedQuestion.id)}">Remove</button>
+        </div>
+        <div class="question-revision-box">
+          <label>
+            <span>Revision Instructions</span>
+            <textarea data-revision-instructions rows="3" placeholder="Example: make this focus on constructor syntax and include one tricky distractor."></textarea>
+          </label>
+          <button type="button" data-review-action="revise" data-question-id="${escapeHtml(selectedQuestion.id)}">Revise With AI</button>
         </div>
       </article>
     `;
@@ -486,7 +534,7 @@ export class QuestionGenerationStudio {
     this.setDraft({ ...draft, questions: nextQuestions });
   }
 
-  private async regenerateQuestion(questionId: string, formData: FormData): Promise<void> {
+  private async regenerateQuestion(questionId: string, formData: FormData, instructions = ""): Promise<void> {
     const draft = this.validateCurrentDraft();
 
     if (!draft) {
@@ -515,7 +563,13 @@ export class QuestionGenerationStudio {
       const result = await provider.generateQuestions({
         ...request,
         counts,
-        notes: `${request.notes}\n\nRegenerate this question as a stronger replacement:\n${JSON.stringify(current, null, 2)}`
+        notes: [
+          request.notes,
+          "",
+          "Regenerate this question as a stronger replacement:",
+          JSON.stringify(current, null, 2),
+          instructions.trim() ? `\nInstructor revision instructions:\n${instructions.trim()}` : ""
+        ].join("\n")
       });
       const replacement = result.quiz.questions[0];
 
@@ -547,7 +601,7 @@ export class QuestionGenerationStudio {
     URL.revokeObjectURL(link.href);
   }
 
-  private saveDraft(quiz: QuizFile): void {
+  private async saveDraft(quiz: QuizFile): Promise<void> {
     const savedDrafts = readSavedDrafts();
     const key = slugify(quiz.title);
     savedDrafts[key] = {
@@ -556,11 +610,19 @@ export class QuestionGenerationStudio {
       quiz
     };
     localStorage.setItem(SAVED_DRAFTS_STORAGE_KEY, JSON.stringify(savedDrafts));
-    this.renderSavedDraftActions();
-    this.renderGenerationStatus(`Saved "${quiz.title}" to the browser quiz bank.`, true);
+
+    try {
+      await this.quizBank.saveQuiz(quiz);
+      await this.renderSavedDraftActions();
+      this.renderGenerationStatus(`Saved "${quiz.title}" to Firebase and the browser quiz bank.`, true);
+    } catch (error) {
+      await this.renderSavedDraftActions();
+      const message = error instanceof Error ? error.message : String(error);
+      this.renderGenerationStatus(`Saved "${quiz.title}" to the browser quiz bank. Firebase save failed: ${message}`, true);
+    }
   }
 
-  private renderSavedDraftActions(): void {
+  private async renderSavedDraftActions(): Promise<void> {
     const form = this.root.querySelector<HTMLFormElement>("#generation-form");
 
     if (!form) {
@@ -568,8 +630,32 @@ export class QuestionGenerationStudio {
     }
 
     form.querySelector(".saved-drafts")?.remove();
-    const savedDrafts = readSavedDrafts();
-    const entries = Object.entries(savedDrafts);
+    const localEntries = Object.entries(readSavedDrafts()).map(
+      ([key, value]): SavedDraftOption => ({
+        key: `local:${key}`,
+        title: value.title,
+        savedAt: value.savedAt,
+        quiz: value.quiz,
+        source: "Browser"
+      })
+    );
+    let firebaseEntries: SavedDraftOption[] = [];
+
+    try {
+      firebaseEntries = (await this.quizBank.listQuizzes()).map(
+        (entry): SavedDraftOption => ({
+          key: `firebase:${entry.id}`,
+          title: entry.title,
+          savedAt: readSavedAt(entry),
+          quiz: entry.quiz,
+          source: "Firebase"
+        })
+      );
+    } catch {
+      firebaseEntries = [];
+    }
+
+    const entries = [...firebaseEntries, ...localEntries];
 
     if (entries.length === 0) {
       return;
@@ -579,12 +665,12 @@ export class QuestionGenerationStudio {
     wrapper.className = "saved-drafts generation-form__wide";
     wrapper.innerHTML = `
       <label>
-        <span>Browser Quiz Bank</span>
+        <span>Quiz Bank</span>
         <select name="savedDraft">
           ${entries
             .map(
-              ([key, value]) =>
-                `<option value="${escapeHtml(key)}">${escapeHtml(value.title)} - ${new Date(value.savedAt).toLocaleDateString()}</option>`
+              (entry) =>
+                `<option value="${escapeHtml(entry.key)}">${escapeHtml(entry.title)} - ${entry.source} - ${new Date(entry.savedAt).toLocaleDateString()}</option>`
             )
             .join("")}
         </select>
@@ -593,7 +679,7 @@ export class QuestionGenerationStudio {
     `;
     wrapper.querySelector("button")?.addEventListener("click", () => {
       const key = wrapper.querySelector<HTMLSelectElement>('select[name="savedDraft"]')?.value ?? "";
-      const saved = readSavedDrafts()[key];
+      const saved = entries.find((entry) => entry.key === key);
 
       if (saved) {
         this.setDraft(saved.quiz);
@@ -608,6 +694,11 @@ interface SavedDraftRecord {
   title: string;
   savedAt: string;
   quiz: QuizFile;
+}
+
+interface SavedDraftOption extends SavedDraftRecord {
+  key: string;
+  source: "Browser" | "Firebase";
 }
 
 export function readGeneratedDraft(): QuizFile | undefined {
@@ -648,6 +739,100 @@ function readSavedDrafts(): Record<string, SavedDraftRecord> {
   } catch {
     return {};
   }
+}
+
+function readSavedAt(entry: SavedQuizBankEntry): string {
+  const value = entry.savedAt;
+
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+
+  if (value && typeof value === "object" && "seconds" in value && typeof value.seconds === "number") {
+    const milliseconds = value.seconds * 1000;
+    return new Date(milliseconds).toISOString();
+  }
+
+  return new Date().toISOString();
+}
+
+function createQualityWarnings(quiz: QuizFile): string[] {
+  const warnings: string[] = [];
+  const seenQuestions = new Map<string, string>();
+  const typeCounts = new Map<QuestionType, number>();
+  let missingExplanationCount = 0;
+  let untimedCount = 0;
+  let trueFalseCount = 0;
+  let duplicateAnswerCount = 0;
+  let weakCodeQuestionCount = 0;
+
+  for (const question of quiz.questions) {
+    const normalizedQuestion = question.question.trim().toLowerCase().replace(/\s+/g, " ");
+    const previousId = seenQuestions.get(normalizedQuestion);
+
+    if (previousId) {
+      warnings.push(`"${question.id}" duplicates the wording of "${previousId}".`);
+    } else {
+      seenQuestions.set(normalizedQuestion, question.id);
+    }
+
+    if (question.question.trim().length < 12) {
+      warnings.push(`"${question.id}" has very short question text.`);
+    }
+
+    if (!question.explanation?.trim()) {
+      missingExplanationCount += 1;
+    }
+
+    if (!question.timeLimit) {
+      untimedCount += 1;
+    }
+
+    typeCounts.set(question.type, (typeCounts.get(question.type) ?? 0) + 1);
+
+    if (question.type === "true-false") {
+      trueFalseCount += 1;
+    }
+
+    if (question.type === "multiple-choice" || question.type === "code-question") {
+      const normalizedAnswers = question.answers.map((answer) => answer.trim().toLowerCase());
+      const uniqueAnswers = new Set(normalizedAnswers);
+
+      if (uniqueAnswers.size !== normalizedAnswers.length) {
+        duplicateAnswerCount += 1;
+      }
+    }
+
+    if (question.type === "code-question" && question.code.trim().length < 20) {
+      weakCodeQuestionCount += 1;
+    }
+  }
+
+  if (missingExplanationCount > 0) {
+    warnings.push(`${missingExplanationCount} question${missingExplanationCount === 1 ? "" : "s"} need explanations before class.`);
+  }
+
+  if (untimedCount > 0) {
+    warnings.push(`${untimedCount} question${untimedCount === 1 ? "" : "s"} use the default timer instead of an explicit time limit.`);
+  }
+
+  if (trueFalseCount > Math.ceil(quiz.questions.length / 2)) {
+    warnings.push("More than half of the draft is true/false; consider adding more applied question types.");
+  }
+
+  if (duplicateAnswerCount > 0) {
+    warnings.push(`${duplicateAnswerCount} question${duplicateAnswerCount === 1 ? " has" : "s have"} duplicate answer choices.`);
+  }
+
+  if (weakCodeQuestionCount > 0) {
+    warnings.push(`${weakCodeQuestionCount} code question${weakCodeQuestionCount === 1 ? " has" : "s have"} very short code snippets.`);
+  }
+
+  if ((typeCounts.get("multiple-choice") ?? 0) === quiz.questions.length && quiz.questions.length > 4) {
+    warnings.push("All questions are multiple choice; consider adding a mix of true/false, fill blank, or code questions.");
+  }
+
+  return warnings;
 }
 
 function createUniqueQuestionId(quiz: QuizFile, baseId: string): string {
