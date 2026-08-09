@@ -1,13 +1,16 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { initializeApp } = require("firebase-admin/app");
-const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
 const { HttpsError, onCall } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 initializeApp();
 
 const db = getFirestore();
 const QUIZ_DIR = path.join(__dirname, "quizzes");
+const SESSION_TTL_HOURS = 24;
+const CLEANUP_BATCH_SIZE = 50;
 
 exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) {
@@ -96,6 +99,26 @@ exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
     };
   });
 });
+
+exports.cleanupExpiredSessions = onSchedule(
+  {
+    region: "us-central1",
+    schedule: "every 24 hours",
+    timeZone: "America/Denver"
+  },
+  async () => {
+    const cutoff = Timestamp.fromMillis(Date.now() - SESSION_TTL_HOURS * 60 * 60 * 1000);
+    const expiredSessions = await db
+      .collection("sessions")
+      .where("createdAt", "<=", cutoff)
+      .limit(CLEANUP_BATCH_SIZE)
+      .get();
+
+    await Promise.all(expiredSessions.docs.map((session) => db.recursiveDelete(session.ref)));
+
+    console.log(`Cleaned up ${expiredSessions.size} expired classroom sessions.`);
+  }
+);
 
 function normalizeCode(code) {
   return typeof code === "string" ? code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) : "";

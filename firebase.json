@@ -16,7 +16,10 @@
     }
   },
   "functions": {
-    "source": "functions"
+    "source": "functions",
+    "predeploy": [
+      "node functions/scripts/sync-quizzes.js"
+    ]
   },
   "hosting": {
     "public": "dist",
