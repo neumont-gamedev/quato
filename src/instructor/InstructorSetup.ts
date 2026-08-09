@@ -27,7 +27,6 @@ export class InstructorSetup {
     this.root.className = "instructor-setup-shell";
     this.root.innerHTML = `
       <section class="instructor-setup-card" aria-labelledby="instructor-setup-title">
-        <p class="student-eyebrow">RevealQuiz</p>
         <h1 id="instructor-setup-title">Instructor Setup</h1>
         <form class="instructor-setup-form" id="instructor-setup-form">
           <label>
