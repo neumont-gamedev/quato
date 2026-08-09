@@ -58,6 +58,8 @@ export class InstructorController {
   }
 
   handleQuestionChanged(question: QuizQuestion | undefined, questionIndex: number, currentSlide?: HTMLElement): Promise<void> {
+    const previousQuestion = this.activeQuestion;
+    const previousQuestionIndex = this.activeQuestionIndex;
     const version = (this.slideChangeVersion += 1);
     this.activeQuestion = question ?? null;
     this.activeQuestionIndex = questionIndex;
@@ -75,6 +77,16 @@ export class InstructorController {
       }
 
       if (question && this.session) {
+        if (
+          (this.session.status === "revealed" || this.session.status === "leaderboard") &&
+          this.session.revealedAnswer?.questionId === question.id
+        ) {
+          this.renderQuestionReveal(question);
+          this.listenAnswers(question.id);
+          this.render();
+          return;
+        }
+
         await this.service.publishQuestion(this.session.code, question, questionIndex, this.quiz.questions.length);
         if (version === this.slideChangeVersion) {
           this.awards = [];
@@ -88,6 +100,14 @@ export class InstructorController {
           await this.service.endSession(this.session.code);
           this.renderFinalResultsStage(currentSlide);
           this.render();
+          return;
+        }
+
+        if (isLeaderboardSlide && previousQuestion && this.session.status === "question-open") {
+          window.RevealQuizDeck?.prev();
+          this.activeQuestion = previousQuestion;
+          this.activeQuestionIndex = previousQuestionIndex;
+          await this.revealSpecificQuestion(previousQuestion);
           return;
         }
 
@@ -177,8 +197,42 @@ export class InstructorController {
     }
 
     this.awards = await this.service.scoreAndRevealQuestion(this.session.code, current.question.id);
+    this.markQuestionRevealed(current.question);
     this.renderQuestionReveal(current.question);
     this.render();
+  }
+
+  private async revealSpecificQuestion(question: QuizQuestion): Promise<void> {
+    if (!this.session) {
+      return;
+    }
+
+    if (this.session.status === "revealed" && this.session.revealedAnswer?.questionId === question.id) {
+      this.renderQuestionReveal(question);
+      return;
+    }
+
+    this.awards = await this.service.scoreAndRevealQuestion(this.session.code, question.id);
+    this.markQuestionRevealed(question);
+    this.renderQuestionReveal(question);
+    this.render();
+  }
+
+  private markQuestionRevealed(question: QuizQuestion): void {
+    if (!this.session) {
+      return;
+    }
+
+    this.session = {
+      ...this.session,
+      status: "revealed",
+      revealedAnswer: {
+        questionId: question.id,
+        type: question.type,
+        correctAnswer: getCorrectAnswerLabel(question),
+        ...(question.explanation === undefined ? {} : { explanation: question.explanation })
+      }
+    };
   }
 
   private syncActiveQuestionFromDeck(): { question: QuizQuestion | undefined; questionIndex: number } {
@@ -547,6 +601,18 @@ function getCorrectAnswerIndex(question: QuizQuestion): string {
       return question.answer ? "0" : "1";
     case "fill-blank":
       return "";
+  }
+}
+
+function getCorrectAnswerLabel(question: QuizQuestion): string {
+  switch (question.type) {
+    case "multiple-choice":
+    case "code-question":
+      return question.answers[question.correct] ?? `Choice ${question.correct + 1}`;
+    case "true-false":
+      return question.answer ? "True" : "False";
+    case "fill-blank":
+      return question.answers.join(" / ");
   }
 }
 
