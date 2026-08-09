@@ -7,6 +7,10 @@ export interface QuestionGenerationRequest {
   counts: Record<QuestionType, number>;
   includeExplanations: boolean;
   defaultPoints: number;
+  teamMode: boolean;
+  achievementsEnabled: boolean;
+  enabledAchievements: string[];
+  bossMultiplier: number;
 }
 
 export interface QuestionGenerationResult {

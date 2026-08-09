@@ -1,5 +1,7 @@
+import { FirebaseAiQuestionProvider } from "../ai/FirebaseAiQuestionProvider";
 import { LocalMockQuestionProvider } from "../ai/LocalMockQuestionProvider";
-import type { QuestionGenerationRequest } from "../ai/types";
+import type { AiQuestionProvider, QuestionGenerationRequest } from "../ai/types";
+import { ACHIEVEMENTS } from "../classroom/GameMeta";
 import { QuizLoader } from "../quiz/QuizLoader";
 import type { QuestionType, QuizFile } from "../types/Question";
 
@@ -7,7 +9,6 @@ const DRAFT_STORAGE_KEY = "revealquiz.generatedDraft";
 const QUESTION_TYPES: QuestionType[] = ["multiple-choice", "true-false", "fill-blank", "code-question"];
 
 export class QuestionGenerationStudio {
-  private readonly provider = new LocalMockQuestionProvider();
   private readonly validator = new QuizLoader();
   private jsonEditor?: HTMLTextAreaElement;
   private validationPanel?: HTMLElement;
@@ -26,6 +27,14 @@ export class QuestionGenerationStudio {
         </div>
 
         <form id="generation-form" class="generation-form">
+          <label class="generation-form__wide">
+            <span>Provider</span>
+            <select name="provider">
+              <option value="firebase">Firebase AI Logic</option>
+              <option value="local">Local Draft Generator</option>
+            </select>
+          </label>
+
           <label>
             <span>Topic</span>
             <input name="topic" value="C++ Smart Pointers" required />
@@ -56,6 +65,23 @@ export class QuestionGenerationStudio {
             <label><span>Default Points</span><input name="defaultPoints" type="number" min="1" max="1000" value="100" /></label>
             <label class="generation-checkbox"><input name="includeExplanations" type="checkbox" checked /> Include explanations</label>
           </div>
+
+          <fieldset class="generation-game generation-form__wide">
+            <legend>Game Settings</legend>
+            <label class="generation-checkbox"><input name="teamMode" type="checkbox" checked /> Team quiz</label>
+            <label class="generation-checkbox"><input name="achievementsEnabled" type="checkbox" checked /> Achievements</label>
+            <label><span>Boss Multiplier</span><input name="bossMultiplier" type="number" min="1" max="10" value="2" /></label>
+            <div class="generation-achievements">
+              ${ACHIEVEMENTS.map(
+                (achievement) => `
+                  <label class="generation-checkbox">
+                    <input name="enabledAchievements" type="checkbox" value="${escapeHtml(achievement.id)}" checked />
+                    ${escapeHtml(achievement.name)}
+                  </label>
+                `
+              ).join("")}
+            </div>
+          </fieldset>
 
           <div class="generation-actions generation-form__wide">
             <button type="submit">Generate Draft</button>
@@ -102,12 +128,31 @@ export class QuestionGenerationStudio {
 
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const submitButton = form.querySelector<HTMLButtonElement>('button[type="submit"]');
       const request = this.readRequest(new FormData(form));
-      const result = await this.provider.generateQuestions(request);
-      this.setDraft(result.quiz);
+      const provider = this.createProvider(new FormData(form));
 
-      if (this.promptPanel) {
-        this.promptPanel.value = result.prompt;
+      try {
+        submitButton?.setAttribute("disabled", "true");
+        if (submitButton) {
+          submitButton.textContent = "Generating...";
+        }
+        this.renderGenerationStatus(`Generating with ${provider.name}...`);
+        const result = await provider.generateQuestions(request);
+        this.setDraft(result.quiz);
+
+        if (this.promptPanel) {
+          this.promptPanel.value = result.prompt;
+        }
+
+        this.renderGenerationStatus(`Generated with ${result.providerName}. Review before using live.`, true);
+      } catch (error) {
+        this.renderValidationErrors([error instanceof Error ? error.message : String(error)]);
+      } finally {
+        submitButton?.removeAttribute("disabled");
+        if (submitButton) {
+          submitButton.textContent = "Generate Draft";
+        }
       }
     });
 
@@ -148,8 +193,16 @@ export class QuestionGenerationStudio {
       notes: String(formData.get("notes") ?? ""),
       counts,
       includeExplanations: formData.has("includeExplanations"),
-      defaultPoints: Math.max(1, Number(formData.get("defaultPoints")) || 100)
+      defaultPoints: Math.max(1, Number(formData.get("defaultPoints")) || 100),
+      teamMode: formData.has("teamMode"),
+      achievementsEnabled: formData.has("achievementsEnabled"),
+      enabledAchievements: formData.getAll("enabledAchievements").map(String),
+      bossMultiplier: Math.max(1, Math.min(10, Number(formData.get("bossMultiplier")) || 2))
     };
+  }
+
+  private createProvider(formData: FormData): AiQuestionProvider {
+    return formData.get("provider") === "local" ? new LocalMockQuestionProvider() : new FirebaseAiQuestionProvider();
   }
 
   private setDraft(quiz: QuizFile): void {
@@ -193,6 +246,15 @@ export class QuestionGenerationStudio {
     this.validationPanel.innerHTML = `<strong>Validation failed</strong><ul>${errors
       .map((error) => `<li>${escapeHtml(error)}</li>`)
       .join("")}</ul>`;
+  }
+
+  private renderGenerationStatus(message: string, isValid = false): void {
+    if (!this.validationPanel) {
+      return;
+    }
+
+    this.validationPanel.className = `validation-panel ${isValid ? "is-valid" : "is-empty"}`;
+    this.validationPanel.textContent = message;
   }
 
   private downloadDraft(quiz: QuizFile): void {

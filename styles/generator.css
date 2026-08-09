@@ -71,7 +71,8 @@
 
 .generation-form label,
 .generation-counts label,
-.generation-options label {
+.generation-options label,
+.generation-game label {
   display: grid;
   gap: 6px;
   color: var(--rq-muted);
@@ -122,6 +123,30 @@
   gap: 12px;
 }
 
+.generation-game {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+}
+
+.generation-game legend {
+  padding: 0 6px;
+  color: var(--rq-cyan);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.generation-achievements {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
 .generation-checkbox {
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -151,6 +176,11 @@
   font-weight: 900;
   text-decoration: none;
   cursor: pointer;
+}
+
+.generation-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
 }
 
 .generation-actions a,
@@ -226,6 +256,8 @@
 @media (max-width: 640px) {
   .generation-counts,
   .generation-options,
+  .generation-game,
+  .generation-achievements,
   .generation-form {
     grid-template-columns: 1fr;
   }
