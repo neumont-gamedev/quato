@@ -20,6 +20,7 @@ export function buildQuestionGenerationPrompt(request: QuestionGenerationRequest
     "- Use unique IDs.",
     "- Include clear answer choices.",
     "- Do not reveal correct answers anywhere except the structured answer fields.",
+    "- Include a game object with teamMode, achievementsEnabled, enabledAchievements, and bossMultiplier.",
     request.includeExplanations ? "- Include concise explanations." : "- Omit explanations.",
     `- Use ${request.defaultPoints} points unless a question deserves a different value.`,
     "",

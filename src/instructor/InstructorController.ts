@@ -6,6 +6,7 @@ import { getAchievementById } from "../classroom/GameMeta";
 import { ClassroomSessionService } from "../classroom/ClassroomSessionService";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, LeaderboardEntry } from "../classroom/types";
 import type { QuizFile, QuizQuestion } from "../types/Question";
+import { areAchievementsEnabled, isTeamModeEnabled } from "../quiz/GameRules";
 
 export class InstructorController {
   private readonly service = new ClassroomSessionService();
@@ -356,7 +357,7 @@ export class InstructorController {
     }
 
     const joinUrl = `${location.origin}/?mode=student&code=${this.session.code}`;
-    const teamLeaderboard = this.createTeamLeaderboard();
+    const teamLeaderboard = this.isTeamModeEnabled() ? this.createTeamLeaderboard() : "";
     const leaderboard = this.createLeaderboard();
     this.panel.innerHTML = `
       <div class="classroom-code">
@@ -428,7 +429,7 @@ export class InstructorController {
                   <span class="classroom-rank">${index + 1}</span>
                   ${this.renderRankMovement(player.uid)}
                   ${renderCharacterSprite(player.characterIndex, "classroom-player-character")}
-                  <span class="team-dot team-${player.teamId}" aria-hidden="true"></span>
+                  ${this.isTeamModeEnabled() ? `<span class="team-dot team-${player.teamId}" aria-hidden="true"></span>` : ""}
                   ${escapePanelText(player.name)}
                 </strong>
                 <em>${player.score}${points}</em>
@@ -441,7 +442,7 @@ export class InstructorController {
   }
 
   private createTeamLeaderboard(): string {
-    const rankedTeams = createTeamLeaderboardEntries(this.players);
+    const rankedTeams = this.isTeamModeEnabled() ? createTeamLeaderboardEntries(this.players) : [];
 
     if (rankedTeams.length === 0) {
       return "";
@@ -494,7 +495,7 @@ export class InstructorController {
                   <strong>
                     ${this.renderRankMovement(player.uid)}
                     ${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}
-                    <span class="team-dot team-${player.teamId}" aria-hidden="true"></span>
+                    ${this.isTeamModeEnabled() ? `<span class="team-dot team-${player.teamId}" aria-hidden="true"></span>` : ""}
                     ${escapePanelText(player.name)}
                   </strong>
                   <em>${player.score.toLocaleString()}</em>
@@ -605,7 +606,7 @@ export class InstructorController {
     }
 
     const rankedPlayers = createLeaderboardEntries(this.players, 10);
-    const rankedTeams = createTeamLeaderboardEntries(this.players);
+    const rankedTeams = this.isTeamModeEnabled() ? createTeamLeaderboardEntries(this.players) : [];
     const totalScore = this.players.reduce((sum, player) => sum + player.score, 0);
     const averageScore = this.players.length === 0 ? 0 : Math.round(totalScore / this.players.length);
 
@@ -628,7 +629,7 @@ export class InstructorController {
                   <span>${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}</span>
                   <strong>
                     ${index + 1}. ${escapePanelText(player.name)}
-                    <small>${escapePanelText(player.teamName)}${this.renderAchievementSummary(player.achievements)}</small>
+                    <small>${this.renderPlayerDetailSummary(player)}</small>
                   </strong>
                   <em>${player.score.toLocaleString()}</em>
                 </li>
@@ -711,11 +712,28 @@ export class InstructorController {
   }
 
   private renderAchievementSummary(achievements: string[] = []): string {
-    if (achievements.length === 0) {
+    if (!this.areAchievementsEnabled() || achievements.length === 0) {
       return "";
     }
 
     return ` - ${achievements.map((achievementId) => getAchievementById(achievementId).name).join(", ")}`;
+  }
+
+  private renderPlayerDetailSummary(player: LeaderboardEntry): string {
+    const details = [
+      this.isTeamModeEnabled() ? player.teamName : "",
+      this.renderAchievementSummary(player.achievements).replace(/^ - /, "")
+    ].filter(Boolean);
+
+    return escapePanelText(details.join(" - "));
+  }
+
+  private isTeamModeEnabled(): boolean {
+    return isTeamModeEnabled(this.session?.game ?? this.quiz.game);
+  }
+
+  private areAchievementsEnabled(): boolean {
+    return areAchievementsEnabled(this.session?.game ?? this.quiz.game);
   }
 }
 

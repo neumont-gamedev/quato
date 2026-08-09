@@ -1,6 +1,11 @@
 {
   "title": "C++ Smart Pointers",
   "description": "Phase 1 demo quiz for RevealQuiz.",
+  "game": {
+    "teamMode": false,
+    "achievementsEnabled": false,
+    "bossMultiplier": 2
+  },
   "questions": [
     {
       "id": "q1",

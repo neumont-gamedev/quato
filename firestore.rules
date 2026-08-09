@@ -11,6 +11,7 @@ service cloud.firestore {
     //   - code: string, required, immutable, 6 chars.
     //   - title: string, required, 1..120 chars.
     //   - quizId: string, required, immutable, 1..80 chars.
+    //   - game: map or null, optional on older sessions, quiz-level team/achievement/scoring options.
     //   - instructorUid: string, required, immutable owner UID.
     //   - status: string, required enum lobby/presenting/question-open/locked/revealed/leaderboard/ended.
     //   - currentQuestionId: string or null, required, <=80 chars.
@@ -119,6 +120,23 @@ service cloud.firestore {
         );
     }
 
+    function validGameConfig(game) {
+      return game == null ||
+        (
+          game is map &&
+          game.keys().hasOnly(['teamMode', 'achievementsEnabled', 'enabledAchievements', 'bossMultiplier']) &&
+          (!('teamMode' in game) || game.teamMode is bool) &&
+          (!('achievementsEnabled' in game) || game.achievementsEnabled is bool) &&
+          (!('enabledAchievements' in game) ||
+            (
+              game.enabledAchievements is list &&
+              game.enabledAchievements.size() <= 20 &&
+              game.enabledAchievements.hasOnly(['first-correct', 'streak-3', 'speed-demon', 'boss-clear'])
+            )) &&
+          (!('bossMultiplier' in game) || (game.bossMultiplier is number && game.bossMultiplier >= 1 && game.bossMultiplier <= 10))
+        );
+    }
+
     function validRevealVisibility(data) {
       return data.revealedAnswer == null || data.status in ['revealed', 'leaderboard', 'ended'];
     }
@@ -128,6 +146,7 @@ service cloud.firestore {
           'code',
           'title',
           'quizId',
+          'game',
           'instructorUid',
           'status',
           'currentQuestionId',
@@ -161,6 +180,7 @@ service cloud.firestore {
         validString(data.code, 6, 6) &&
         validString(data.title, 1, 120) &&
         validString(data.quizId, 1, 80) &&
+        (!('game' in data) || validGameConfig(data.game)) &&
         validString(data.instructorUid, 1, 128) &&
         validStatus(data.status) &&
         validOptionalStringOrNull(data.currentQuestionId, 80) &&
@@ -196,6 +216,7 @@ service cloud.firestore {
       return validSession(request.resource.data) &&
         request.resource.data.code == resource.data.code &&
         request.resource.data.quizId == resource.data.quizId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['game']) &&
         request.resource.data.instructorUid == resource.data.instructorUid &&
         request.resource.data.createdAt == resource.data.createdAt &&
         request.resource.data.updatedAt == request.time;

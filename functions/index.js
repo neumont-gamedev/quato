@@ -11,6 +11,7 @@ const db = getFirestore();
 const QUIZ_DIR = path.join(__dirname, "quizzes");
 const SESSION_TTL_DAYS = 90;
 const CLEANUP_BATCH_SIZE = 50;
+const DEFAULT_ENABLED_ACHIEVEMENTS = ["first-correct", "streak-3", "speed-demon", "boss-clear"];
 
 exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
   if (!request.auth) {
@@ -72,7 +73,7 @@ exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
     const answers = answersSnapshot.docs.map((doc) => doc.data());
     const awards = scoreQuestionForPlayers({
       question,
-      game: quiz.game,
+      game: session.game || quiz.game,
       answers,
       players,
       questionStartedAt: session.questionStartedAt
@@ -240,7 +241,8 @@ function scoreQuestionForPlayers(options) {
       isCorrect,
       nextStreak,
       speedBonus,
-      question: options.question
+      question: options.question,
+      game: options.game
     });
 
     return {
@@ -261,22 +263,36 @@ function scoreQuestionForPlayers(options) {
 }
 
 function awardAchievements(options) {
+  const enabledAchievements = getEnabledAchievements(options.game);
+
+  if (enabledAchievements.length === 0) {
+    return {
+      achievements: Array.isArray(options.currentAchievements) ? options.currentAchievements : [],
+      newAchievements: []
+    };
+  }
+
   const achievements = new Set(Array.isArray(options.currentAchievements) ? options.currentAchievements : []);
   const beforeSize = achievements.size;
 
-  if (options.isCorrect) {
+  if (options.isCorrect && enabledAchievements.includes("first-correct")) {
     achievements.add("first-correct");
   }
 
-  if (options.isCorrect && options.nextStreak >= 3) {
+  if (options.isCorrect && options.nextStreak >= 3 && enabledAchievements.includes("streak-3")) {
     achievements.add("streak-3");
   }
 
-  if (options.isCorrect && options.speedBonus >= 35) {
+  if (options.isCorrect && options.speedBonus >= 35 && enabledAchievements.includes("speed-demon")) {
     achievements.add("speed-demon");
   }
 
-  if (options.isCorrect && Array.isArray(options.question.tags) && options.question.tags.includes("boss")) {
+  if (
+    options.isCorrect &&
+    Array.isArray(options.question.tags) &&
+    options.question.tags.includes("boss") &&
+    enabledAchievements.includes("boss-clear")
+  ) {
     achievements.add("boss-clear");
   }
 
@@ -288,6 +304,18 @@ function awardAchievements(options) {
       return !(Array.isArray(options.currentAchievements) ? options.currentAchievements : []).includes(id);
     })
   };
+}
+
+function getEnabledAchievements(game) {
+  if (!game || game.achievementsEnabled !== true) {
+    return [];
+  }
+
+  if (Array.isArray(game.enabledAchievements)) {
+    return game.enabledAchievements.filter((achievement) => DEFAULT_ENABLED_ACHIEVEMENTS.includes(achievement));
+  }
+
+  return DEFAULT_ENABLED_ACHIEVEMENTS;
 }
 
 function getQuestionMultiplier(question, game) {

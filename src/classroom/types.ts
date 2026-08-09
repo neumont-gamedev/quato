@@ -1,4 +1,4 @@
-import type { PublicQuestion, QuestionType, RevealedAnswer } from "../types/Question";
+import type { PublicQuestion, QuestionType, QuizGameConfig, RevealedAnswer } from "../types/Question";
 
 export type SessionStatus = "lobby" | "presenting" | "question-open" | "locked" | "revealed" | "leaderboard" | "ended";
 
@@ -6,6 +6,7 @@ export interface ClassroomSession {
   code: string;
   title: string;
   quizId: string;
+  game?: QuizGameConfig | null;
   instructorUid: string;
   status: SessionStatus;
   currentQuestionId: string | null;

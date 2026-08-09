@@ -2,6 +2,9 @@
   "title": "C++ Random Numbers",
   "description": "A second quiz file to demonstrate Phase 2 content swapping.",
   "game": {
+    "teamMode": true,
+    "achievementsEnabled": true,
+    "enabledAchievements": ["first-correct", "streak-3", "speed-demon", "boss-clear"],
     "bossMultiplier": 2
   },
   "questions": [

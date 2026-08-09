@@ -340,7 +340,8 @@
   font-weight: 900;
 }
 
-.instructor-setup-form select {
+.instructor-setup-form select,
+.instructor-setup-form input[type="number"] {
   box-sizing: border-box;
   width: 100%;
   min-height: 52px;
@@ -350,6 +351,41 @@
   background: var(--rq-bg);
   color: var(--rq-text);
   font: inherit;
+}
+
+.instructor-setup-options {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+}
+
+.instructor-setup-options legend {
+  padding: 0 6px;
+  color: var(--rq-cyan);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.instructor-setup-checkbox {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px !important;
+}
+
+.instructor-setup-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--rq-cyan);
+}
+
+.instructor-setup-achievements {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
 }
 
 .instructor-setup-form button {
@@ -478,6 +514,12 @@
   font: inherit;
   font-weight: 900;
   cursor: pointer;
+}
+
+.student-form button:disabled,
+.student-answer-form button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .student-character-picker {
@@ -966,7 +1008,8 @@
   }
 
   .team-standings,
-  .classroom-team-leaderboard {
+  .classroom-team-leaderboard,
+  .instructor-setup-achievements {
     grid-template-columns: 1fr;
   }
 

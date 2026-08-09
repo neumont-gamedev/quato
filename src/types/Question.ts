@@ -49,6 +49,9 @@ export interface QuizFile {
 }
 
 export interface QuizGameConfig {
+  teamMode?: boolean;
+  achievementsEnabled?: boolean;
+  enabledAchievements?: string[];
   bossMultiplier?: number;
 }
 

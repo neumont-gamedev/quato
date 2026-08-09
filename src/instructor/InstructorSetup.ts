@@ -1,4 +1,5 @@
 import { escapeHtml } from "../questions/QuestionRenderer";
+import { ACHIEVEMENTS } from "../classroom/GameMeta";
 
 interface SetupOption {
   value: string;
@@ -47,6 +48,31 @@ export class InstructorSetup {
               ${this.renderOptions(THEME_OPTIONS, "signal")}
             </select>
           </label>
+          <fieldset class="instructor-setup-options">
+            <legend>Game Options</legend>
+            <label class="instructor-setup-checkbox">
+              <input name="teamMode" type="checkbox" checked />
+              <span>Team quiz</span>
+            </label>
+            <label class="instructor-setup-checkbox">
+              <input name="achievementsEnabled" type="checkbox" checked />
+              <span>Achievements</span>
+            </label>
+            <label>
+              <span>Boss Multiplier</span>
+              <input name="bossMultiplier" type="number" min="1" max="10" value="2" />
+            </label>
+            <div class="instructor-setup-achievements">
+              ${ACHIEVEMENTS.map(
+                (achievement) => `
+                  <label class="instructor-setup-checkbox">
+                    <input name="enabledAchievements" type="checkbox" value="${escapeHtml(achievement.id)}" checked />
+                    <span>${escapeHtml(achievement.name)}</span>
+                  </label>
+                `
+              ).join("")}
+            </div>
+          </fieldset>
           <button type="submit">Open Instructor Deck</button>
         </form>
         <a class="instructor-setup-generator" href="/?mode=generator&theme=signal">Question Generator</a>
@@ -61,8 +87,14 @@ export class InstructorSetup {
         mode: "deck",
         presentation: String(formData.get("presentation") ?? "cpp-random"),
         quiz: String(formData.get("quiz") ?? "cpp-random"),
-        theme: String(formData.get("theme") ?? "signal")
+        theme: String(formData.get("theme") ?? "signal"),
+        teamMode: formData.has("teamMode") ? "1" : "0",
+        achievementsEnabled: formData.has("achievementsEnabled") ? "1" : "0",
+        bossMultiplier: String(formData.get("bossMultiplier") ?? "2")
       });
+      const enabledAchievements = formData.getAll("enabledAchievements").map(String).join(",");
+
+      params.set("enabledAchievements", enabledAchievements);
 
       window.location.assign(`/?${params.toString()}#/0`);
     });

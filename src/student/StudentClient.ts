@@ -9,12 +9,14 @@ import {
 import { renderCharacterSprite, setCharacterSprite, wrapCharacterIndex } from "../classroom/CharacterSprites";
 import { TEAM_OPTIONS, getAchievementById, getTeamById } from "../classroom/GameMeta";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession } from "../classroom/types";
+import { areAchievementsEnabled, isTeamModeEnabled } from "../quiz/GameRules";
 import type { PublicQuestion } from "../types/Question";
 import { escapeHtml } from "../questions/QuestionRenderer";
 
 export class StudentClient {
   private readonly service = new ClassroomSessionService();
   private code = "";
+  private joinSessionOptionsLoaded = false;
   private selectedCharacterIndex = 0;
   private player: ClassroomPlayer | null = null;
   private players: ClassroomPlayer[] = [];
@@ -33,10 +35,16 @@ export class StudentClient {
   mount(initialCode: string): void {
     this.root.className = "student-shell";
     this.code = normalizeCode(initialCode);
+    this.joinSessionOptionsLoaded = !this.code;
     this.renderJoin();
+
+    if (this.code) {
+      void this.prefetchJoinSession();
+    }
   }
 
   private renderJoin(): void {
+    const teamMode = isTeamModeEnabled(this.session?.game);
     this.root.innerHTML = `
       <section class="student-card">
         <h1>Join Session</h1>
@@ -49,12 +57,18 @@ export class StudentClient {
             <span>Your Name</span>
             <input name="name" maxlength="32" required />
           </label>
-          <label>
-            <span>Team</span>
-            <select name="teamId" required>
-              ${TEAM_OPTIONS.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`).join("")}
-            </select>
-          </label>
+          ${
+            teamMode
+              ? `
+                <label>
+                  <span>Team</span>
+                  <select name="teamId" required>
+                    ${TEAM_OPTIONS.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`).join("")}
+                  </select>
+                </label>
+              `
+              : ""
+          }
           <div class="student-character-picker" aria-label="Choose your character">
             <button class="student-character-arrow" type="button" data-character-step="-1" aria-label="Previous character">
               <span aria-hidden="true">&lsaquo;</span>
@@ -68,7 +82,9 @@ export class StudentClient {
             </button>
           </div>
           <input type="hidden" name="characterIndex" value="${this.selectedCharacterIndex}" />
-          <button type="submit">Join</button>
+          <button type="submit" ${this.code && !this.joinSessionOptionsLoaded ? "disabled" : ""}>
+            ${this.code && !this.joinSessionOptionsLoaded ? "Loading Session" : "Join"}
+          </button>
         </form>
       </section>
     `;
@@ -85,13 +101,20 @@ export class StudentClient {
         this.code,
         String(formData.get("name") ?? "Player"),
         characterIndex,
-        String(formData.get("teamId") ?? TEAM_OPTIONS[0].id)
+        String(formData.get("teamId") ?? TEAM_OPTIONS[0].id),
+        isTeamModeEnabled(this.session?.game)
       );
       this.listenSession();
       this.listenPlayers();
       void this.listenCurrentPlayer();
       this.renderWaiting();
     });
+  }
+
+  private async prefetchJoinSession(): Promise<void> {
+    this.session = await this.service.getSession(this.code);
+    this.joinSessionOptionsLoaded = true;
+    this.renderJoin();
   }
 
   private listenSession(): void {
@@ -269,35 +292,45 @@ export class StudentClient {
         ${renderCharacterSprite(this.player.characterIndex, "student-score-character")}
         <span>Score <strong>${this.player.score.toLocaleString()}</strong></span>
         <span>Streak <strong>${this.player.streak}</strong></span>
-        <span>Team <strong>${escapeHtml(getTeamById(this.player.teamId).name.replace(" Team", ""))}</strong></span>
+        ${
+          isTeamModeEnabled(this.session?.game)
+            ? `<span>Team <strong>${escapeHtml(getTeamById(this.player.teamId).name.replace(" Team", ""))}</strong></span>`
+            : ""
+        }
       </div>
     `;
   }
 
   private renderLeaderboard(): string {
     const rankedPlayers = createLeaderboardEntries(this.players);
-    const rankedTeams = createTeamLeaderboardEntries(this.players);
+    const rankedTeams = isTeamModeEnabled(this.session?.game) ? createTeamLeaderboardEntries(this.players) : [];
 
     if (rankedPlayers.length === 0 && rankedTeams.length === 0) {
       return "";
     }
 
     return `
-      <div class="student-leaderboard">
-        <span>Team Standings</span>
-        <ol>
-          ${rankedTeams
-            .map(
-              (team, index) => `
-                <li class="${team.teamId === this.player?.teamId ? "is-current-player" : ""}">
-                  <strong><span class="team-dot team-${team.teamId}" aria-hidden="true"></span>${index + 1}. ${escapeHtml(team.teamName)}</strong>
-                  <em>${team.score.toLocaleString()}</em>
-                </li>
-              `
-            )
-            .join("")}
-        </ol>
-      </div>
+      ${
+        rankedTeams.length > 0
+          ? `
+            <div class="student-leaderboard">
+              <span>Team Standings</span>
+              <ol>
+                ${rankedTeams
+                  .map(
+                    (team, index) => `
+                      <li class="${team.teamId === this.player?.teamId ? "is-current-player" : ""}">
+                        <strong><span class="team-dot team-${team.teamId}" aria-hidden="true"></span>${index + 1}. ${escapeHtml(team.teamName)}</strong>
+                        <em>${team.score.toLocaleString()}</em>
+                      </li>
+                    `
+                  )
+                  .join("")}
+              </ol>
+            </div>
+          `
+          : ""
+      }
       <div class="student-leaderboard">
         <span>Players</span>
         <ol>
@@ -331,7 +364,7 @@ export class StudentClient {
   private renderAchievements(): string {
     const achievements = this.player?.achievements ?? [];
 
-    if (achievements.length === 0) {
+    if (!areAchievementsEnabled(this.session?.game) || achievements.length === 0) {
       return "";
     }
 

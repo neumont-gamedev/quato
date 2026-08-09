@@ -39,6 +39,7 @@ export class ClassroomSessionService {
       code,
       title: quiz.title,
       quizId,
+      game: quiz.game ?? null,
       instructorUid: user.uid,
       status: "lobby",
       currentQuestionId: null,
@@ -150,10 +151,16 @@ export class ClassroomSessionService {
     });
   }
 
-  async joinSession(code: string, displayName: string, characterIndex: number, teamId: string): Promise<ClassroomPlayer> {
+  async getSession(code: string): Promise<ClassroomSession | null> {
+    await this.ensureAnonymousUser();
+    const snapshot = await getDoc(doc(db, "sessions", normalizeCode(code)));
+    return snapshot.exists() ? (snapshot.data() as ClassroomSession) : null;
+  }
+
+  async joinSession(code: string, displayName: string, characterIndex: number, teamId: string, teamMode = true): Promise<ClassroomPlayer> {
     const user = await this.ensureAnonymousUser();
     const normalizedCode = normalizeCode(code);
-    const team = getTeamById(normalizeTeamId(teamId));
+    const team = getTeamById(normalizeTeamId(teamId, teamMode));
     const player: ClassroomPlayer = {
       uid: user.uid,
       name: displayName.trim().slice(0, 32),

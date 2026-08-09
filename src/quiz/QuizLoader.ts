@@ -10,6 +10,7 @@ import type {
 } from "../types/Question";
 
 const QUESTION_TYPES = new Set(["multiple-choice", "true-false", "fill-blank", "code-question"]);
+const ACHIEVEMENT_IDS = new Set(["first-correct", "streak-3", "speed-demon", "boss-clear"]);
 
 export class QuizLoader {
   async loadFromUrl(url: string): Promise<ValidationResult<QuizFile>> {
@@ -351,6 +352,38 @@ function validateGameConfig(rawGame: unknown, errors: string[]): QuizGameConfig 
   }
 
   const game: QuizGameConfig = {};
+
+  if (rawGame.teamMode !== undefined) {
+    if (typeof rawGame.teamMode !== "boolean") {
+      errors.push("game.teamMode must be a boolean when provided.");
+    } else {
+      game.teamMode = rawGame.teamMode;
+    }
+  }
+
+  if (rawGame.achievementsEnabled !== undefined) {
+    if (typeof rawGame.achievementsEnabled !== "boolean") {
+      errors.push("game.achievementsEnabled must be a boolean when provided.");
+    } else {
+      game.achievementsEnabled = rawGame.achievementsEnabled;
+    }
+  }
+
+  if (rawGame.enabledAchievements !== undefined) {
+    if (!Array.isArray(rawGame.enabledAchievements)) {
+      errors.push("game.enabledAchievements must be an array when provided.");
+    } else {
+      const achievements = rawGame.enabledAchievements.filter(
+        (achievement): achievement is string => typeof achievement === "string" && ACHIEVEMENT_IDS.has(achievement)
+      );
+
+      if (achievements.length !== rawGame.enabledAchievements.length) {
+        errors.push(`game.enabledAchievements may only include: ${Array.from(ACHIEVEMENT_IDS).join(", ")}.`);
+      } else {
+        game.enabledAchievements = Array.from(new Set(achievements));
+      }
+    }
+  }
 
   if (rawGame.bossMultiplier !== undefined) {
     if (typeof rawGame.bossMultiplier !== "number" || rawGame.bossMultiplier < 1 || rawGame.bossMultiplier > 10) {

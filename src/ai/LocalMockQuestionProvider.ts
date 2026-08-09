@@ -26,6 +26,12 @@ export class LocalMockQuestionProvider implements AiQuestionProvider {
       quiz: {
         title: `${request.topic} Review`,
         description: `Generated ${request.level} draft questions for instructor review.`,
+        game: {
+          teamMode: true,
+          achievementsEnabled: true,
+          enabledAchievements: ["first-correct", "streak-3", "speed-demon", "boss-clear"],
+          bossMultiplier: 2
+        },
         questions
       }
     };

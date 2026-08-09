@@ -12,6 +12,15 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "teamMode": { "type": "boolean" },
+        "achievementsEnabled": { "type": "boolean" },
+        "enabledAchievements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["first-correct", "streak-3", "speed-demon", "boss-clear"]
+          }
+        },
         "bossMultiplier": { "type": "number", "minimum": 1, "maximum": 10 }
       }
     },

@@ -19,6 +19,7 @@ import {
 import { InstructorController } from "./instructor/InstructorController";
 import { InstructorSetup } from "./instructor/InstructorSetup";
 import { StudentClient } from "./student/StudentClient";
+import type { QuizFile, QuizGameConfig } from "./types/Question";
 
 async function bootstrap() {
   void firebaseApp;
@@ -75,10 +76,11 @@ async function bootstrap() {
     return;
   }
 
+  const quiz = applyGameOverrides(result.data, options.gameOverrides);
   const presentationLoader = new MarkdownPresentationLoader();
   const presentation =
     options.mode === "preview-generated"
-      ? { markdown: createGeneratedPresentation(result.data), errors: [] }
+      ? { markdown: createGeneratedPresentation(quiz), errors: [] }
       : await presentationLoader.loadFromUrl(options.presentationUrl);
 
   if (!presentation.markdown) {
@@ -86,17 +88,17 @@ async function bootstrap() {
     return;
   }
 
-  const renderedPresentation = presentationLoader.renderInto(presentation.markdown, slides, result.data);
+  const renderedPresentation = presentationLoader.renderInto(presentation.markdown, slides, quiz);
 
   if (renderedPresentation.errors.length > 0) {
     renderFatalError(renderedPresentation.errors);
     return;
   }
 
-  const instructor = new InstructorController(result.data, classroomPanel, options.quizId);
+  const instructor = new InstructorController(quiz, classroomPanel, options.quizId);
   instructor.mount();
 
-  const engine = new QuizEngine(result.data, hud, null, {
+  const engine = new QuizEngine(quiz, hud, null, {
     onActiveQuestionChange: (question, questionIndex, currentSlide) => {
       void instructor.handleQuestionChanged(question, questionIndex, currentSlide);
     }
@@ -115,6 +117,7 @@ function readAuthoringOptions() {
   const theme = params.get("theme") ?? "signal";
   const mode = params.get("mode") ?? (params.has("presentation") || params.has("quiz") ? "deck" : "setup");
   const code = params.get("code") ?? "";
+  const gameOverrides = readGameOverrides(params);
 
   return {
     presentationUrl: `/presentations/${sanitizeSlug(presentation)}.md`,
@@ -122,7 +125,52 @@ function readAuthoringOptions() {
     quizId: sanitizeSlug(quiz),
     theme: sanitizeSlug(theme),
     mode: sanitizeSlug(mode),
-    code: sanitizeSlug(code)
+    code: sanitizeSlug(code),
+    gameOverrides
+  };
+}
+
+function readGameOverrides(params: URLSearchParams): Partial<QuizGameConfig> {
+  const overrides: Partial<QuizGameConfig> = {};
+
+  if (params.has("teamMode")) {
+    overrides.teamMode = params.get("teamMode") === "1";
+  }
+
+  if (params.has("achievementsEnabled")) {
+    overrides.achievementsEnabled = params.get("achievementsEnabled") === "1";
+  }
+
+  if (params.has("enabledAchievements")) {
+    overrides.enabledAchievements = params
+      .get("enabledAchievements")!
+      .split(",")
+      .map((achievement) => sanitizeSlug(achievement))
+      .filter(Boolean);
+  }
+
+  if (params.has("bossMultiplier")) {
+    const bossMultiplier = Number(params.get("bossMultiplier"));
+
+    if (Number.isFinite(bossMultiplier)) {
+      overrides.bossMultiplier = Math.max(1, Math.min(10, bossMultiplier));
+    }
+  }
+
+  return overrides;
+}
+
+function applyGameOverrides(quiz: QuizFile, overrides: Partial<QuizGameConfig>): QuizFile {
+  if (Object.keys(overrides).length === 0) {
+    return quiz;
+  }
+
+  return {
+    ...quiz,
+    game: {
+      ...(quiz.game ?? {}),
+      ...overrides
+    }
   };
 }
 
