@@ -16,7 +16,7 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../firebase";
 import type { PublicQuestion, QuizFile, QuizQuestion } from "../types/Question";
 import { toPublicQuestion } from "../types/Question";
-import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, SessionStatus } from "./types";
+import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, GradeExport, SessionStatus } from "./types";
 import type { ClassroomScoreAward } from "./ClassroomScoring";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -116,6 +116,18 @@ export class ClassroomSessionService {
     >(functions, "revealQuestion");
     const result = await reveal({ code: normalizeCode(code), questionId });
     return result.data.awards ?? [];
+  }
+
+  async endSession(code: string): Promise<GradeExport> {
+    const end = httpsCallable<{ code: string }, GradeExport>(functions, "endSession");
+    const result = await end({ code: normalizeCode(code) });
+    return result.data;
+  }
+
+  async getGradeExport(code: string): Promise<GradeExport | null> {
+    await this.ensureAnonymousUser();
+    const snapshot = await getDoc(doc(db, "gradeExports", normalizeCode(code)));
+    return snapshot.exists() ? (snapshot.data() as GradeExport) : null;
   }
 
   async setStatus(code: string, status: SessionStatus): Promise<void> {

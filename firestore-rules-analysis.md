@@ -26,6 +26,8 @@ This note covers the small session-status update for the RevealQuiz live classro
 - Blocked browser score/streak updates on player documents; the Admin SDK function now performs those writes.
 - Added scheduled backend cleanup for expired session documents and subcollections using Admin SDK recursive deletion.
 - Added a deploy-time quiz sync script that validates and copies `public/quizzes/*.json` into `functions/quizzes`.
+- Added `gradeExports/{code}` documents created by the backend when the instructor ends a session.
+- Increased cleanup retention to 90 days so instructors have time to export grades.
 
 ## Devil's Advocate Check
 
@@ -36,4 +38,5 @@ This note covers the small session-status update for the RevealQuiz live classro
 - Direct browser scoring is blocked because player self-updates must preserve `score` and `streak`, and instructor score updates are no longer allowed by rules.
 - Direct browser reveals are blocked because instructor session updates cannot set `status == "revealed"` or introduce a non-null `revealedAnswer`.
 - Session cleanup runs with Admin SDK privileges on a 24-hour schedule, so clients do not get any new deletion permissions.
+- Grade exports are readable only by the session instructor UID and cannot be written by clients.
 - Schema pollution remains blocked by `hasOnly` field validators.

@@ -85,7 +85,7 @@ export class InstructorController {
 
       if (this.session) {
         if (isFinalResultsSlide) {
-          await this.service.setStatus(this.session.code, "ended");
+          await this.service.endSession(this.session.code);
           this.renderFinalResultsStage(currentSlide);
           this.render();
           return;
@@ -285,6 +285,7 @@ export class InstructorController {
         <button type="button" data-action="copy">Copy Link</button>
         <button type="button" data-action="sync">Sync Slide</button>
         <button type="button" data-action="lock" ${this.session.status !== "question-open" ? "disabled" : ""}>Lock</button>
+        <button type="button" data-action="export" ${this.session.status !== "ended" ? "disabled" : ""}>Export CSV</button>
         <button type="button" data-action="end">End</button>
       </div>
       <p class="classroom-url">${joinUrl}</p>
@@ -461,9 +462,48 @@ export class InstructorController {
     this.panel.querySelector<HTMLElement>('[data-action="lock"]')?.addEventListener("click", () => {
       void this.revealQuestion();
     });
-    this.panel.querySelector<HTMLElement>('[data-action="end"]')?.addEventListener("click", () => {
-      if (this.session) void this.service.setStatus(this.session.code, "ended");
+    this.panel.querySelector<HTMLElement>('[data-action="export"]')?.addEventListener("click", () => {
+      void this.exportGradeCsv();
     });
+    this.panel.querySelector<HTMLElement>('[data-action="end"]')?.addEventListener("click", () => {
+      if (this.session) void this.endSession();
+    });
+  }
+
+  private async endSession(): Promise<void> {
+    if (!this.session) {
+      return;
+    }
+
+    await this.service.endSession(this.session.code);
+    this.renderFinalResultsStage();
+    this.render();
+  }
+
+  private async exportGradeCsv(): Promise<void> {
+    if (!this.session) {
+      return;
+    }
+
+    const gradeExport = await this.service.getGradeExport(this.session.code);
+
+    if (!gradeExport) {
+      return;
+    }
+
+    const csv = [
+      ["Rank", "Name", "Score", "Streak", "Session Code", "Quiz"].map(csvCell).join(","),
+      ...gradeExport.rows.map((row) =>
+        [row.rank, row.name, row.score, row.streak, gradeExport.code, gradeExport.title].map(csvCell).join(",")
+      )
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${gradeExport.code}-${gradeExport.quizId}-grades.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -473,6 +513,11 @@ function escapePanelText(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function csvCell(value: string | number): string {
+  const text = String(value).replace(/"/g, '""');
+  return `"${text}"`;
 }
 
 function getCorrectAnswerIndex(question: QuizQuestion): string {

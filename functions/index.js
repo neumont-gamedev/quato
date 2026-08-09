@@ -9,7 +9,7 @@ initializeApp();
 
 const db = getFirestore();
 const QUIZ_DIR = path.join(__dirname, "quizzes");
-const SESSION_TTL_HOURS = 24;
+const SESSION_TTL_DAYS = 90;
 const CLEANUP_BATCH_SIZE = 50;
 
 exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
@@ -100,6 +100,61 @@ exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
   });
 });
 
+exports.endSession = onCall({ region: "us-central1" }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in is required.");
+  }
+
+  const code = normalizeCode(request.data?.code);
+
+  if (!code) {
+    throw new HttpsError("invalid-argument", "A session code is required.");
+  }
+
+  const sessionRef = db.collection("sessions").doc(code);
+  const exportRef = db.collection("gradeExports").doc(code);
+  const playersSnapshot = await sessionRef.collection("players").get();
+
+  return db.runTransaction(async (transaction) => {
+    const sessionSnapshot = await transaction.get(sessionRef);
+
+    if (!sessionSnapshot.exists) {
+      throw new HttpsError("not-found", "Session not found.");
+    }
+
+    const session = sessionSnapshot.data();
+
+    if (session.instructorUid !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "Only the session instructor can end a session.");
+    }
+
+    const players = playersSnapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() }));
+    const rows = createGradeRows(players);
+    const gradeExport = {
+      code,
+      title: session.title,
+      quizId: session.quizId || "example",
+      instructorUid: session.instructorUid,
+      playerCount: players.length,
+      rows,
+      createdAt: FieldValue.serverTimestamp(),
+      endedAt: FieldValue.serverTimestamp()
+    };
+
+    transaction.set(exportRef, gradeExport);
+    transaction.update(sessionRef, {
+      status: "ended",
+      updatedAt: FieldValue.serverTimestamp()
+    });
+
+    return {
+      ...gradeExport,
+      createdAt: null,
+      endedAt: null
+    };
+  });
+});
+
 exports.cleanupExpiredSessions = onSchedule(
   {
     region: "us-central1",
@@ -107,14 +162,25 @@ exports.cleanupExpiredSessions = onSchedule(
     timeZone: "America/Denver"
   },
   async () => {
-    const cutoff = Timestamp.fromMillis(Date.now() - SESSION_TTL_HOURS * 60 * 60 * 1000);
+    const cutoff = Timestamp.fromMillis(Date.now() - SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
     const expiredSessions = await db
       .collection("sessions")
       .where("createdAt", "<=", cutoff)
       .limit(CLEANUP_BATCH_SIZE)
       .get();
 
-    await Promise.all(expiredSessions.docs.map((session) => db.recursiveDelete(session.ref)));
+    await Promise.all(
+      expiredSessions.docs.map((session) =>
+        Promise.all([
+          db.recursiveDelete(session.ref),
+          db.collection("gradeExports").doc(session.id).delete().catch((error) => {
+            if (error.code !== 5) {
+              throw error;
+            }
+          })
+        ])
+      )
+    );
 
     console.log(`Cleaned up ${expiredSessions.size} expired classroom sessions.`);
   }
@@ -137,6 +203,18 @@ function loadQuiz(quizId) {
   }
 
   return JSON.parse(fs.readFileSync(quizPath, "utf8"));
+}
+
+function createGradeRows(players) {
+  return [...players]
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+    .map((player, index) => ({
+      rank: index + 1,
+      uid: player.uid,
+      name: player.name,
+      score: player.score,
+      streak: player.streak
+    }));
 }
 
 function scoreQuestionForPlayers(options) {

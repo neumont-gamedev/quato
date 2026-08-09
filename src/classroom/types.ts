@@ -43,3 +43,22 @@ export interface LeaderboardEntry {
   score: number;
   streak: number;
 }
+
+export interface GradeExportRow {
+  rank: number;
+  uid: string;
+  name: string;
+  score: number;
+  streak: number;
+}
+
+export interface GradeExport {
+  code: string;
+  title: string;
+  quizId: string;
+  instructorUid: string;
+  playerCount: number;
+  rows: GradeExportRow[];
+  createdAt?: unknown;
+  endedAt?: unknown;
+}

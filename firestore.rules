@@ -43,6 +43,18 @@ service cloud.firestore {
     //   - value: string, number, bool, or list, required, size-limited when applicable.
     //   - submittedAt: timestamp, required, immutable.
     //
+    // Collection: gradeExports
+    // Document ID: 6-character classroom join code.
+    // Fields:
+    //   - code: string, required, immutable, 6 chars.
+    //   - title: string, required, 1..120 chars.
+    //   - quizId: string, required, immutable, 1..80 chars.
+    //   - instructorUid: string, required, immutable owner UID.
+    //   - playerCount: number, required, 0..500.
+    //   - rows: list, required, up to 500 row maps.
+    //   - createdAt: timestamp, required.
+    //   - endedAt: timestamp, required.
+    //
     // ===============================================================
 
     function isAuthenticated() {
@@ -274,6 +286,11 @@ service cloud.firestore {
         allow create: if isAuthenticated() && validAnswerCreate(code);
         allow update, delete: if false;
       }
+    }
+
+    match /gradeExports/{code} {
+      allow get: if isAuthenticated() && resource.data.instructorUid == request.auth.uid;
+      allow list, create, update, delete: if false;
     }
 
     match /{document=**} {
