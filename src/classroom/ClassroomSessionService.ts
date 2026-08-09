@@ -149,12 +149,13 @@ export class ClassroomSessionService {
     });
   }
 
-  async joinSession(code: string, displayName: string): Promise<ClassroomPlayer> {
+  async joinSession(code: string, displayName: string, characterIndex: number): Promise<ClassroomPlayer> {
     const user = await this.ensureAnonymousUser();
     const normalizedCode = normalizeCode(code);
     const player: ClassroomPlayer = {
       uid: user.uid,
       name: displayName.trim().slice(0, 32),
+      characterIndex: normalizeCharacterIndex(characterIndex),
       score: 0,
       streak: 0,
       joinedAt: serverTimestamp(),
@@ -202,6 +203,10 @@ export class ClassroomSessionService {
 
 export function normalizeCode(code: string): string {
   return code.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+}
+
+export function normalizeCharacterIndex(index: number): number {
+  return Number.isInteger(index) && index >= 0 && index < 256 ? index : 0;
 }
 
 export function renderStudentAnswer(question: PublicQuestion, formData: FormData): ClassroomAnswer["value"] {

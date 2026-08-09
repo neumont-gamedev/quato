@@ -29,6 +29,7 @@ service cloud.firestore {
     // Fields:
     //   - uid: string, required, immutable, must equal request.auth.uid.
     //   - name: string, required, 1..32 chars, classroom display name only.
+    //   - characterIndex: number, required, 0..255, sprite-sheet character selection.
     //   - score: number, required, 0..1000000.
     //   - streak: number, required, 0..500.
     //   - joinedAt: timestamp, required, immutable.
@@ -207,11 +208,16 @@ service cloud.firestore {
           request.resource.data.revealedAnswer == resource.data.revealedAnswer);
     }
 
+    function validCharacterIndex(index) {
+      return index is number && index >= 0 && index <= 255;
+    }
+
     function validPlayer(data, uid) {
-      return data.keys().hasOnly(['uid', 'name', 'score', 'streak', 'joinedAt', 'lastSeenAt']) &&
-        data.keys().hasAll(['uid', 'name', 'score', 'streak', 'joinedAt', 'lastSeenAt']) &&
+      return data.keys().hasOnly(['uid', 'name', 'characterIndex', 'score', 'streak', 'joinedAt', 'lastSeenAt']) &&
+        data.keys().hasAll(['uid', 'name', 'characterIndex', 'score', 'streak', 'joinedAt', 'lastSeenAt']) &&
         data.uid == uid &&
         validString(data.name, 1, 32) &&
+        validCharacterIndex(data.characterIndex) &&
         data.score is number &&
         data.score >= 0 &&
         data.score <= 1000000 &&

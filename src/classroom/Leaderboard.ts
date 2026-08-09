@@ -7,6 +7,7 @@ export function createLeaderboardEntries(players: ClassroomPlayer[], limit = 5):
     .map((player) => ({
       uid: player.uid,
       name: player.name,
+      characterIndex: player.characterIndex,
       score: player.score,
       streak: player.streak
     }));

@@ -1,4 +1,5 @@
 import type { Unsubscribe } from "firebase/firestore";
+import { renderCharacterSprite } from "../classroom/CharacterSprites";
 import { createLeaderboardEntries } from "../classroom/Leaderboard";
 import type { ClassroomScoreAward } from "../classroom/ClassroomScoring";
 import { ClassroomSessionService } from "../classroom/ClassroomSessionService";
@@ -403,7 +404,7 @@ export class InstructorController {
           .map((player, index) => {
             const award = this.awards.find((candidate) => candidate.uid === player.uid);
             const points = award && award.points > 0 ? ` <span>+${award.points}</span>` : "";
-            return `<li><strong>${index + 1}. ${escapePanelText(player.name)}</strong><em>${player.score}${points}</em></li>`;
+            return `<li><strong>${renderCharacterSprite(player.characterIndex, "classroom-player-character")}${index + 1}. ${escapePanelText(player.name)}</strong><em>${player.score}${points}</em></li>`;
           })
           .join("")}
       </ol>
@@ -434,8 +435,8 @@ export class InstructorController {
             .map(
               (player, index) => `
                 <li>
-                  <span>${index + 1}</span>
-                  <strong>${escapePanelText(player.name)}</strong>
+                  <span>${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}</span>
+                  <strong>${index + 1}. ${escapePanelText(player.name)}</strong>
                   <em>${player.score.toLocaleString()}</em>
                 </li>
               `
@@ -507,8 +508,8 @@ export class InstructorController {
             .map(
               (player, index) => `
                 <li>
-                  <span>${index + 1}</span>
-                  <strong>${escapePanelText(player.name)}</strong>
+                  <span>${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}</span>
+                  <strong>${index + 1}. ${escapePanelText(player.name)}</strong>
                   <em>${player.score.toLocaleString()}</em>
                 </li>
               `

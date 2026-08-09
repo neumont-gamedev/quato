@@ -23,6 +23,7 @@ export interface ClassroomSession {
 export interface ClassroomPlayer {
   uid: string;
   name: string;
+  characterIndex: number;
   score: number;
   streak: number;
   joinedAt?: unknown;
@@ -40,6 +41,7 @@ export interface ClassroomAnswer {
 export interface LeaderboardEntry {
   uid: string;
   name: string;
+  characterIndex: number;
   score: number;
   streak: number;
 }

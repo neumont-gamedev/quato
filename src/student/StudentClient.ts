@@ -1,6 +1,12 @@
 import type { Unsubscribe } from "firebase/firestore";
 import { createLeaderboardEntries } from "../classroom/Leaderboard";
-import { ClassroomSessionService, normalizeCode, renderStudentAnswer } from "../classroom/ClassroomSessionService";
+import {
+  ClassroomSessionService,
+  normalizeCharacterIndex,
+  normalizeCode,
+  renderStudentAnswer
+} from "../classroom/ClassroomSessionService";
+import { renderCharacterSprite, setCharacterSprite, wrapCharacterIndex } from "../classroom/CharacterSprites";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession } from "../classroom/types";
 import type { PublicQuestion } from "../types/Question";
 import { escapeHtml } from "../questions/QuestionRenderer";
@@ -8,6 +14,7 @@ import { escapeHtml } from "../questions/QuestionRenderer";
 export class StudentClient {
   private readonly service = new ClassroomSessionService();
   private code = "";
+  private selectedCharacterIndex = 0;
   private player: ClassroomPlayer | null = null;
   private players: ClassroomPlayer[] = [];
   private session: ClassroomSession | null = null;
@@ -15,6 +22,8 @@ export class StudentClient {
   private unsubscribePlayer?: Unsubscribe;
   private unsubscribePlayers?: Unsubscribe;
   private timerId?: number;
+  private characterRepeatTimerId?: number;
+  private characterRepeatDelayTimerId?: number;
   private submittedQuestionId: string | null = null;
   private submittedAnswer: { questionId: string; value: ClassroomAnswer["value"] } | null = null;
 
@@ -40,17 +49,33 @@ export class StudentClient {
             <span>Your Name</span>
             <input name="name" maxlength="32" required />
           </label>
+          <div class="student-character-picker" aria-label="Choose your character">
+            <button class="student-character-arrow" type="button" data-character-step="-1" aria-label="Previous character">
+              <span aria-hidden="true">‹</span>
+            </button>
+            <button class="student-character-select is-selected" type="button" aria-label="Select current character">
+              ${renderCharacterSprite(this.selectedCharacterIndex, "student-character-preview")}
+              <span>Selected</span>
+            </button>
+            <button class="student-character-arrow" type="button" data-character-step="1" aria-label="Next character">
+              <span aria-hidden="true">›</span>
+            </button>
+          </div>
+          <input type="hidden" name="characterIndex" value="${this.selectedCharacterIndex}" />
           <button type="submit">Join</button>
         </form>
       </section>
     `;
+
+    this.bindCharacterPicker();
 
     this.root.querySelector<HTMLFormElement>("#student-join-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = event.currentTarget as HTMLFormElement;
       const formData = new FormData(form);
       this.code = normalizeCode(String(formData.get("code") ?? ""));
-      this.player = await this.service.joinSession(this.code, String(formData.get("name") ?? "Player"));
+      const characterIndex = normalizeCharacterIndex(Number(formData.get("characterIndex")));
+      this.player = await this.service.joinSession(this.code, String(formData.get("name") ?? "Player"), characterIndex);
       this.listenSession();
       this.listenPlayers();
       void this.listenCurrentPlayer();
@@ -228,6 +253,7 @@ export class StudentClient {
 
     return `
       <div class="student-score-strip">
+        ${renderCharacterSprite(this.player.characterIndex, "student-score-character")}
         <span>Score <strong>${this.player.score.toLocaleString()}</strong></span>
         <span>Streak <strong>${this.player.streak}</strong></span>
       </div>
@@ -249,7 +275,7 @@ export class StudentClient {
             .map(
               (player, index) => `
                 <li class="${player.uid === this.player?.uid ? "is-current-player" : ""}">
-                  <strong>${index + 1}. ${escapeHtml(player.name)}</strong>
+                  <strong>${renderCharacterSprite(player.characterIndex, "student-leaderboard-character")}${index + 1}. ${escapeHtml(player.name)}</strong>
                   <em>${player.score.toLocaleString()}</em>
                 </li>
               `
@@ -321,6 +347,74 @@ export class StudentClient {
       window.clearInterval(this.timerId);
       this.timerId = undefined;
     }
+  }
+
+  private bindCharacterPicker(): void {
+    const previewButton = this.root.querySelector<HTMLButtonElement>(".student-character-select");
+    const hiddenInput = this.root.querySelector<HTMLInputElement>('input[name="characterIndex"]');
+    const previewSprite = this.root.querySelector<HTMLElement>(".student-character-preview");
+
+    const setCharacter = (nextIndex: number) => {
+      this.selectedCharacterIndex = wrapCharacterIndex(nextIndex);
+      if (hiddenInput) {
+        hiddenInput.value = String(this.selectedCharacterIndex);
+      }
+      if (previewSprite) {
+        setCharacterSprite(previewSprite, this.selectedCharacterIndex);
+      }
+      previewButton?.classList.add("is-selected");
+    };
+
+    const stopRepeating = () => {
+      if (this.characterRepeatTimerId !== undefined) {
+        window.clearInterval(this.characterRepeatTimerId);
+        this.characterRepeatTimerId = undefined;
+      }
+      if (this.characterRepeatDelayTimerId !== undefined) {
+        window.clearTimeout(this.characterRepeatDelayTimerId);
+        this.characterRepeatDelayTimerId = undefined;
+      }
+    };
+
+    this.root.querySelectorAll<HTMLButtonElement>("[data-character-step]").forEach((button) => {
+      const step = Number(button.dataset.characterStep);
+      const advance = () => setCharacter(this.selectedCharacterIndex + step);
+      let skipNextClick = false;
+
+      button.addEventListener("click", () => {
+        if (skipNextClick) {
+          skipNextClick = false;
+          return;
+        }
+        advance();
+      });
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        skipNextClick = true;
+        button.setPointerCapture(event.pointerId);
+        advance();
+        stopRepeating();
+        this.characterRepeatDelayTimerId = window.setTimeout(() => {
+          this.characterRepeatTimerId = window.setInterval(advance, 70);
+        }, 260);
+      });
+      button.addEventListener("pointerup", stopRepeating);
+      button.addEventListener("pointercancel", stopRepeating);
+      button.addEventListener("lostpointercapture", stopRepeating);
+      button.addEventListener("mouseleave", stopRepeating);
+    });
+
+    previewButton?.addEventListener("click", () => {
+      previewButton.classList.add("is-selected");
+      previewButton.animate(
+        [
+          { transform: "scale(1)" },
+          { transform: "scale(1.05)" },
+          { transform: "scale(1)" }
+        ],
+        { duration: 180, easing: "ease-out" }
+      );
+    });
   }
 }
 
