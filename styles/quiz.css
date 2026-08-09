@@ -200,9 +200,9 @@ body {
   padding-top: clamp(8px, 1.3vh, 12px);
   border-top: 1px solid rgb(34 197 94 / 32%);
   color: var(--rq-text);
-  font-size: clamp(0.78rem, 1.65vh, 0.98rem);
-  font-weight: 700;
-  line-height: 1.32;
+  font-size: clamp(0.68rem, 1.35vh, 0.86rem);
+  font-weight: 650;
+  line-height: 1.22;
   overflow-wrap: anywhere;
 }
 
@@ -214,8 +214,12 @@ body {
 }
 
 .answer-option__explanation span {
+  display: block;
+  max-width: 100%;
   color: var(--rq-text);
-  font-weight: 700;
+  font-size: 1em;
+  font-weight: 650;
+  line-height: 1.22;
 }
 
 .answer-option--display .answer-option__explanation,
@@ -239,8 +243,8 @@ body {
 
 .answer-option--display.is-correct-answer {
   align-items: start;
-  min-height: clamp(112px, 17vh, 164px);
-  padding-block: clamp(12px, 2vh, 18px);
+  min-height: clamp(148px, 24vh, 220px);
+  padding-block: clamp(14px, 2.2vh, 20px) clamp(28px, 4vh, 44px);
   border-color: rgb(34 197 94 / 72%);
   background: rgb(34 197 94 / 16%);
   box-shadow: inset 0 0 0 2px rgb(34 197 94 / 28%);
