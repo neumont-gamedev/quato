@@ -680,8 +680,8 @@
   background: rgb(255 255 255 / 8%);
 }
 
-.leaderboard-stage li span,
-.final-stage li span {
+.leaderboard-stage li > span,
+.final-stage li > span {
   display: grid;
   width: 48px;
   height: 48px;
@@ -692,7 +692,7 @@
   font-weight: 900;
 }
 
-.leaderboard-stage li .leaderboard-stage-rank {
+.leaderboard-stage li > .leaderboard-stage-rank {
   background: rgb(255 255 255 / 9%);
 }
 
