@@ -98,8 +98,6 @@ async function bootstrap() {
   const instructor = new InstructorController(quiz, classroomPanel, options.quizId, {
     autoStartSession: options.autoStartSession
   });
-  instructor.mount();
-
   const engine = new QuizEngine(quiz, hud, null, {
     onActiveQuestionChange: (question, questionIndex, currentSlide) => {
       void instructor.handleQuestionChanged(question, questionIndex, currentSlide);
@@ -110,6 +108,7 @@ async function bootstrap() {
 
   const reveal = new RevealIntegration(engine);
   await reveal.initialize();
+  instructor.mount();
 }
 
 function readAuthoringOptions() {
@@ -120,7 +119,7 @@ function readAuthoringOptions() {
   const mode = params.get("mode") ?? (params.has("presentation") || params.has("quiz") ? "deck" : "setup");
   const code = params.get("code") ?? "";
   const gameOverrides = readGameOverrides(params);
-  const autoStartSession = params.get("autoStart") === "1";
+  const autoStartSession = mode === "deck" && params.get("autoStart") !== "0";
 
   return {
     presentationUrl: `/presentations/${sanitizeSlug(presentation)}.md`,
