@@ -16,6 +16,7 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../firebase";
 import type { PublicQuestion, QuizFile, QuizQuestion } from "../types/Question";
 import { toPublicQuestion } from "../types/Question";
+import { getTeamById, normalizeTeamId } from "./GameMeta";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, GradeExport, SessionStatus } from "./types";
 import type { ClassroomScoreAward } from "./ClassroomScoring";
 
@@ -149,13 +150,17 @@ export class ClassroomSessionService {
     });
   }
 
-  async joinSession(code: string, displayName: string, characterIndex: number): Promise<ClassroomPlayer> {
+  async joinSession(code: string, displayName: string, characterIndex: number, teamId: string): Promise<ClassroomPlayer> {
     const user = await this.ensureAnonymousUser();
     const normalizedCode = normalizeCode(code);
+    const team = getTeamById(normalizeTeamId(teamId));
     const player: ClassroomPlayer = {
       uid: user.uid,
       name: displayName.trim().slice(0, 32),
       characterIndex: normalizeCharacterIndex(characterIndex),
+      teamId: team.id,
+      teamName: team.name,
+      achievements: [],
       score: 0,
       streak: 0,
       joinedAt: serverTimestamp(),

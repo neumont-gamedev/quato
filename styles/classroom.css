@@ -189,6 +189,73 @@
   color: var(--rq-green);
 }
 
+.classroom-team-leaderboard {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.classroom-team-leaderboard li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 7%);
+  font-size: 0.74rem;
+}
+
+.classroom-team-leaderboard strong {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.classroom-team-leaderboard strong span {
+  color: var(--rq-muted);
+}
+
+.classroom-team-leaderboard em {
+  color: var(--rq-cyan);
+  font-style: normal;
+  font-weight: 900;
+}
+
+.team-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--rq-muted);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 12%);
+}
+
+.team-red {
+  background: #ff5c7a;
+}
+
+.team-blue {
+  background: #22d3ee;
+}
+
+.team-green {
+  background: #29d391;
+}
+
+.team-gold {
+  background: #ffd166;
+}
+
 .rank-movement {
   display: inline-block;
   width: 0;
@@ -383,6 +450,7 @@
 }
 
 .student-form input,
+.student-form select,
 .student-fill input {
   box-sizing: border-box;
   width: 100%;
@@ -394,6 +462,10 @@
   background: var(--rq-bg);
   color: var(--rq-text);
   font: inherit;
+}
+
+.student-form select {
+  appearance: none;
 }
 
 .student-form button,
@@ -621,6 +693,36 @@
   background: rgb(255 92 122 / 12%);
 }
 
+.student-achievements {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 7%);
+}
+
+.student-achievements > span {
+  color: var(--rq-cyan);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.student-achievements div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.student-achievements strong {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgb(34 211 238 / 14%);
+  color: var(--rq-text);
+  font-size: 0.78rem;
+}
+
 .reveal .slides section[data-leaderboard-slide="true"] {
   top: clamp(16px, 4vh, 36px) !important;
 }
@@ -659,6 +761,48 @@
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.team-standings {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.team-standings div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--rq-line);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 7%);
+}
+
+.team-standings span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  color: var(--rq-muted);
+  font-size: 0.32em;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.team-standings strong {
+  color: var(--rq-text);
+  font-size: 0.58em;
+}
+
+.team-standings em {
+  color: var(--rq-muted);
+  font-size: 0.26em;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .leaderboard-stage ol.is-scrollable {
@@ -716,6 +860,20 @@
 .final-stage li strong,
 .final-stage li em {
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.final-stage li strong {
+  display: grid;
+  gap: 2px;
+}
+
+.final-stage li small {
+  overflow: hidden;
+  color: var(--rq-muted);
+  font-size: 0.44em;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -804,6 +962,11 @@
 
 @media (max-width: 680px) {
   .classroom-results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-standings,
+  .classroom-team-leaderboard {
     grid-template-columns: 1fr;
   }
 

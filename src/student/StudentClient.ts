@@ -1,5 +1,5 @@
 import type { Unsubscribe } from "firebase/firestore";
-import { createLeaderboardEntries } from "../classroom/Leaderboard";
+import { createLeaderboardEntries, createTeamLeaderboardEntries } from "../classroom/Leaderboard";
 import {
   ClassroomSessionService,
   normalizeCharacterIndex,
@@ -7,6 +7,7 @@ import {
   renderStudentAnswer
 } from "../classroom/ClassroomSessionService";
 import { renderCharacterSprite, setCharacterSprite, wrapCharacterIndex } from "../classroom/CharacterSprites";
+import { TEAM_OPTIONS, getAchievementById, getTeamById } from "../classroom/GameMeta";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession } from "../classroom/types";
 import type { PublicQuestion } from "../types/Question";
 import { escapeHtml } from "../questions/QuestionRenderer";
@@ -48,6 +49,12 @@ export class StudentClient {
             <span>Your Name</span>
             <input name="name" maxlength="32" required />
           </label>
+          <label>
+            <span>Team</span>
+            <select name="teamId" required>
+              ${TEAM_OPTIONS.map((team) => `<option value="${team.id}">${escapeHtml(team.name)}</option>`).join("")}
+            </select>
+          </label>
           <div class="student-character-picker" aria-label="Choose your character">
             <button class="student-character-arrow" type="button" data-character-step="-1" aria-label="Previous character">
               <span aria-hidden="true">&lsaquo;</span>
@@ -74,7 +81,12 @@ export class StudentClient {
       const formData = new FormData(form);
       this.code = normalizeCode(String(formData.get("code") ?? ""));
       const characterIndex = normalizeCharacterIndex(Number(formData.get("characterIndex")));
-      this.player = await this.service.joinSession(this.code, String(formData.get("name") ?? "Player"), characterIndex);
+      this.player = await this.service.joinSession(
+        this.code,
+        String(formData.get("name") ?? "Player"),
+        characterIndex,
+        String(formData.get("teamId") ?? TEAM_OPTIONS[0].id)
+      );
       this.listenSession();
       this.listenPlayers();
       void this.listenCurrentPlayer();
@@ -128,6 +140,7 @@ export class StudentClient {
           <h1>Final Results</h1>
           <p>Thanks for playing, ${escapeHtml(this.player?.name ?? "player")}.</p>
           ${this.renderPlayerScore()}
+          ${this.renderAchievements()}
           ${this.renderLeaderboard()}
         </section>
       `;
@@ -185,6 +198,7 @@ export class StudentClient {
         <p>${statusText}</p>
         ${this.renderPlayerScore()}
         ${isRevealed ? this.renderAnswerResult() : ""}
+        ${isRevealed ? this.renderAchievements() : ""}
         ${
           isRevealed && revealedAnswer
             ? `
@@ -255,20 +269,37 @@ export class StudentClient {
         ${renderCharacterSprite(this.player.characterIndex, "student-score-character")}
         <span>Score <strong>${this.player.score.toLocaleString()}</strong></span>
         <span>Streak <strong>${this.player.streak}</strong></span>
+        <span>Team <strong>${escapeHtml(getTeamById(this.player.teamId).name.replace(" Team", ""))}</strong></span>
       </div>
     `;
   }
 
   private renderLeaderboard(): string {
     const rankedPlayers = createLeaderboardEntries(this.players);
+    const rankedTeams = createTeamLeaderboardEntries(this.players);
 
-    if (rankedPlayers.length === 0) {
+    if (rankedPlayers.length === 0 && rankedTeams.length === 0) {
       return "";
     }
 
     return `
       <div class="student-leaderboard">
-        <span>Leaderboard</span>
+        <span>Team Standings</span>
+        <ol>
+          ${rankedTeams
+            .map(
+              (team, index) => `
+                <li class="${team.teamId === this.player?.teamId ? "is-current-player" : ""}">
+                  <strong><span class="team-dot team-${team.teamId}" aria-hidden="true"></span>${index + 1}. ${escapeHtml(team.teamName)}</strong>
+                  <em>${team.score.toLocaleString()}</em>
+                </li>
+              `
+            )
+            .join("")}
+        </ol>
+      </div>
+      <div class="student-leaderboard">
+        <span>Players</span>
         <ol>
           ${rankedPlayers
             .map(
@@ -291,8 +322,31 @@ export class StudentClient {
         <p class="student-eyebrow">${escapeHtml(this.code)}</p>
         <h1>Leaderboard</h1>
         ${this.renderPlayerScore()}
+        ${this.renderAchievements()}
         ${this.renderLeaderboard()}
       </section>
+    `;
+  }
+
+  private renderAchievements(): string {
+    const achievements = this.player?.achievements ?? [];
+
+    if (achievements.length === 0) {
+      return "";
+    }
+
+    return `
+      <div class="student-achievements">
+        <span>Achievements</span>
+        <div>
+          ${achievements
+            .map((achievementId) => {
+              const achievement = getAchievementById(achievementId);
+              return `<strong title="${escapeHtml(achievement.description)}">${escapeHtml(achievement.name)}</strong>`;
+            })
+            .join("")}
+        </div>
+      </div>
     `;
   }
 

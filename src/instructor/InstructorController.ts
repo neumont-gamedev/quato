@@ -1,7 +1,8 @@
 import type { Unsubscribe } from "firebase/firestore";
 import { renderCharacterSprite } from "../classroom/CharacterSprites";
-import { createLeaderboardEntries } from "../classroom/Leaderboard";
+import { createLeaderboardEntries, createTeamLeaderboardEntries } from "../classroom/Leaderboard";
 import type { ClassroomScoreAward } from "../classroom/ClassroomScoring";
+import { getAchievementById } from "../classroom/GameMeta";
 import { ClassroomSessionService } from "../classroom/ClassroomSessionService";
 import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, LeaderboardEntry } from "../classroom/types";
 import type { QuizFile, QuizQuestion } from "../types/Question";
@@ -355,6 +356,7 @@ export class InstructorController {
     }
 
     const joinUrl = `${location.origin}/?mode=student&code=${this.session.code}`;
+    const teamLeaderboard = this.createTeamLeaderboard();
     const leaderboard = this.createLeaderboard();
     this.panel.innerHTML = `
       <div class="classroom-code">
@@ -366,6 +368,7 @@ export class InstructorController {
         <span>${this.answers.length} answered</span>
         <span>${this.session.status}</span>
       </div>
+      ${teamLeaderboard}
       ${leaderboard}
       <div class="classroom-actions">
         <button type="button" data-action="copy">Copy Link</button>
@@ -425,12 +428,36 @@ export class InstructorController {
                   <span class="classroom-rank">${index + 1}</span>
                   ${this.renderRankMovement(player.uid)}
                   ${renderCharacterSprite(player.characterIndex, "classroom-player-character")}
+                  <span class="team-dot team-${player.teamId}" aria-hidden="true"></span>
                   ${escapePanelText(player.name)}
                 </strong>
                 <em>${player.score}${points}</em>
               </li>
             `;
           })
+          .join("")}
+      </ol>
+    `;
+  }
+
+  private createTeamLeaderboard(): string {
+    const rankedTeams = createTeamLeaderboardEntries(this.players);
+
+    if (rankedTeams.length === 0) {
+      return "";
+    }
+
+    return `
+      <ol class="classroom-team-leaderboard" aria-label="Team leaderboard">
+        ${rankedTeams
+          .map(
+            (team, index) => `
+              <li>
+                <strong><span>${index + 1}</span><i class="team-dot team-${team.teamId}" aria-hidden="true"></i>${escapePanelText(team.teamName)}</strong>
+                <em>${team.score.toLocaleString()}</em>
+              </li>
+            `
+          )
           .join("")}
       </ol>
     `;
@@ -444,6 +471,7 @@ export class InstructorController {
     }
 
     const rankedPlayers = createLeaderboardEntries(this.players, this.players.length);
+    const rankedTeams = createTeamLeaderboardEntries(this.players);
 
     if (rankedPlayers.length === 0) {
       return;
@@ -456,6 +484,7 @@ export class InstructorController {
         <p>Leaderboard</p>
         <h2>Current Standings</h2>
         ${this.createQuestionResults()}
+        ${this.renderTeamStandings(rankedTeams)}
         <ol class="${rankedPlayers.length > 8 ? "is-scrollable" : ""}">
           ${rankedPlayers
             .map(
@@ -465,6 +494,7 @@ export class InstructorController {
                   <strong>
                     ${this.renderRankMovement(player.uid)}
                     ${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}
+                    <span class="team-dot team-${player.teamId}" aria-hidden="true"></span>
                     ${escapePanelText(player.name)}
                   </strong>
                   <em>${player.score.toLocaleString()}</em>
@@ -473,6 +503,28 @@ export class InstructorController {
             )
             .join("")}
         </ol>
+      </div>
+    `;
+  }
+
+  private renderTeamStandings(rankedTeams = createTeamLeaderboardEntries(this.players)): string {
+    if (rankedTeams.length === 0) {
+      return "";
+    }
+
+    return `
+      <div class="team-standings" aria-label="Team standings">
+        ${rankedTeams
+          .map(
+            (team, index) => `
+              <div>
+                <span><i class="team-dot team-${team.teamId}" aria-hidden="true"></i>${index + 1}. ${escapePanelText(team.teamName)}</span>
+                <strong>${team.score.toLocaleString()}</strong>
+                <em>${team.playerCount} player${team.playerCount === 1 ? "" : "s"}</em>
+              </div>
+            `
+          )
+          .join("")}
       </div>
     `;
   }
@@ -553,6 +605,7 @@ export class InstructorController {
     }
 
     const rankedPlayers = createLeaderboardEntries(this.players, 10);
+    const rankedTeams = createTeamLeaderboardEntries(this.players);
     const totalScore = this.players.reduce((sum, player) => sum + player.score, 0);
     const averageScore = this.players.length === 0 ? 0 : Math.round(totalScore / this.players.length);
 
@@ -566,13 +619,17 @@ export class InstructorController {
           <div><span>Questions</span><strong>${this.quiz.questions.length}</strong></div>
           <div><span>Avg Score</span><strong>${averageScore.toLocaleString()}</strong></div>
         </div>
+        ${this.renderTeamStandings(rankedTeams)}
         <ol>
           ${rankedPlayers
             .map(
               (player, index) => `
                 <li>
                   <span>${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}</span>
-                  <strong>${index + 1}. ${escapePanelText(player.name)}</strong>
+                  <strong>
+                    ${index + 1}. ${escapePanelText(player.name)}
+                    <small>${escapePanelText(player.teamName)}${this.renderAchievementSummary(player.achievements)}</small>
+                  </strong>
                   <em>${player.score.toLocaleString()}</em>
                 </li>
               `
@@ -628,9 +685,20 @@ export class InstructorController {
     }
 
     const csv = [
-      ["Rank", "Name", "Score", "Streak", "Session Code", "Quiz"].map(csvCell).join(","),
+      ["Rank", "Name", "Team", "Score", "Streak", "Achievements", "Session Code", "Quiz"].map(csvCell).join(","),
       ...gradeExport.rows.map((row) =>
-        [row.rank, row.name, row.score, row.streak, gradeExport.code, gradeExport.title].map(csvCell).join(",")
+        [
+          row.rank,
+          row.name,
+          row.teamName,
+          row.score,
+          row.streak,
+          (row.achievements ?? []).map((achievementId) => getAchievementById(achievementId).name).join("; "),
+          gradeExport.code,
+          gradeExport.title
+        ]
+          .map(csvCell)
+          .join(",")
       )
     ].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -640,6 +708,14 @@ export class InstructorController {
     link.download = `${gradeExport.code}-${gradeExport.quizId}-grades.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  private renderAchievementSummary(achievements: string[] = []): string {
+    if (achievements.length === 0) {
+      return "";
+    }
+
+    return ` - ${achievements.map((achievementId) => getAchievementById(achievementId).name).join(", ")}`;
   }
 }
 

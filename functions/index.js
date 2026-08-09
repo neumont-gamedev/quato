@@ -81,7 +81,8 @@ exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
     awards.forEach((award) => {
       transaction.update(playersRef.doc(award.uid), {
         score: award.score,
-        streak: award.streak
+        streak: award.streak,
+        achievements: award.achievements
       });
     });
 
@@ -213,6 +214,8 @@ function createGradeRows(players) {
       rank: index + 1,
       uid: player.uid,
       name: player.name,
+      teamName: player.teamName || "",
+      achievements: Array.isArray(player.achievements) ? player.achievements : [],
       score: player.score,
       streak: player.streak
     }));
@@ -232,6 +235,13 @@ function scoreQuestionForPlayers(options) {
     const rawPoints = basePoints + speedBonus + streakBonus;
     const multiplier = getQuestionMultiplier(options.question, options.game);
     const points = isCorrect ? Math.round(rawPoints * multiplier) : 0;
+    const achievementResult = awardAchievements({
+      currentAchievements: player.achievements,
+      isCorrect,
+      nextStreak,
+      speedBonus,
+      question: options.question
+    });
 
     return {
       uid: player.uid,
@@ -241,11 +251,43 @@ function scoreQuestionForPlayers(options) {
       speedBonus,
       streakBonus,
       multiplier,
+      achievements: achievementResult.achievements,
+      newAchievements: achievementResult.newAchievements,
       score: player.score + points,
       streak: nextStreak,
       timedOut: !!answer && !submittedWithinLimit
     };
   });
+}
+
+function awardAchievements(options) {
+  const achievements = new Set(Array.isArray(options.currentAchievements) ? options.currentAchievements : []);
+  const beforeSize = achievements.size;
+
+  if (options.isCorrect) {
+    achievements.add("first-correct");
+  }
+
+  if (options.isCorrect && options.nextStreak >= 3) {
+    achievements.add("streak-3");
+  }
+
+  if (options.isCorrect && options.speedBonus >= 35) {
+    achievements.add("speed-demon");
+  }
+
+  if (options.isCorrect && Array.isArray(options.question.tags) && options.question.tags.includes("boss")) {
+    achievements.add("boss-clear");
+  }
+
+  const nextAchievements = [...achievements].slice(0, 20);
+
+  return {
+    achievements: nextAchievements,
+    newAchievements: achievements.size === beforeSize ? [] : nextAchievements.filter((id) => {
+      return !(Array.isArray(options.currentAchievements) ? options.currentAchievements : []).includes(id);
+    })
+  };
 }
 
 function getQuestionMultiplier(question, game) {

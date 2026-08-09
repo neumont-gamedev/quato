@@ -24,6 +24,9 @@ export interface ClassroomPlayer {
   uid: string;
   name: string;
   characterIndex: number;
+  teamId: string;
+  teamName: string;
+  achievements: string[];
   score: number;
   streak: number;
   joinedAt?: unknown;
@@ -42,14 +45,27 @@ export interface LeaderboardEntry {
   uid: string;
   name: string;
   characterIndex: number;
+  teamId: string;
+  teamName: string;
+  achievements: string[];
   score: number;
   streak: number;
+}
+
+export interface TeamLeaderboardEntry {
+  teamId: string;
+  teamName: string;
+  score: number;
+  playerCount: number;
+  averageScore: number;
 }
 
 export interface GradeExportRow {
   rank: number;
   uid: string;
   name: string;
+  teamName: string;
+  achievements: string[];
   score: number;
   streak: number;
 }

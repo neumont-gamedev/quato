@@ -10,6 +10,8 @@ export interface ClassroomScoreAward {
   speedBonus: number;
   streakBonus: number;
   multiplier: number;
+  achievements: string[];
+  newAchievements: string[];
   score: number;
   streak: number;
 }
@@ -40,6 +42,8 @@ export function scoreQuestionForPlayers(options: {
       speedBonus,
       streakBonus,
       multiplier: getQuestionMultiplier(options.question, options.game),
+      achievements: player.achievements ?? [],
+      newAchievements: [],
       score: player.score + points,
       streak: nextStreak
     };
