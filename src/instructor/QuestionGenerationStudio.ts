@@ -3,9 +3,10 @@ import { LocalMockQuestionProvider } from "../ai/LocalMockQuestionProvider";
 import type { AiQuestionProvider, QuestionGenerationRequest } from "../ai/types";
 import { ACHIEVEMENTS } from "../classroom/GameMeta";
 import { QuizLoader } from "../quiz/QuizLoader";
-import type { QuestionType, QuizFile } from "../types/Question";
+import type { QuestionType, QuizFile, QuizQuestion } from "../types/Question";
 
 const DRAFT_STORAGE_KEY = "revealquiz.generatedDraft";
+const SAVED_DRAFTS_STORAGE_KEY = "revealquiz.savedDrafts";
 const QUESTION_TYPES: QuestionType[] = ["multiple-choice", "true-false", "fill-blank", "code-question"];
 
 export class QuestionGenerationStudio {
@@ -13,6 +14,8 @@ export class QuestionGenerationStudio {
   private jsonEditor?: HTMLTextAreaElement;
   private validationPanel?: HTMLElement;
   private promptPanel?: HTMLTextAreaElement;
+  private questionReviewPanel?: HTMLElement;
+  private selectedQuestionId?: string;
 
   constructor(private readonly root: HTMLElement) {}
 
@@ -52,6 +55,11 @@ export class QuestionGenerationStudio {
           <label class="generation-form__wide">
             <span>Instructor Notes</span>
             <textarea name="notes" rows="7">Focus on ownership, shared ownership, weak references, and make_unique.</textarea>
+          </label>
+
+          <label class="generation-form__wide">
+            <span>Import Notes or Slides</span>
+            <input name="sourceFile" type="file" accept=".txt,.md,.markdown,.json" />
           </label>
 
           <div class="generation-counts generation-form__wide">
@@ -99,12 +107,18 @@ export class QuestionGenerationStudio {
           <div class="review-actions">
             <button id="validate-draft" type="button">Validate</button>
             <button id="preview-draft" type="button">Preview Deck</button>
+            <button id="save-draft" type="button">Save to Quiz Bank</button>
             <button id="download-draft" type="button">Download JSON</button>
           </div>
         </div>
 
         <div id="validation-panel" class="validation-panel is-empty">No draft generated yet.</div>
-        <textarea id="json-editor" class="json-editor" spellcheck="false"></textarea>
+        <div id="question-review-panel" class="question-review-panel is-empty">Generate or paste a valid draft to review questions here.</div>
+
+        <details class="json-details" open>
+          <summary>Draft JSON</summary>
+          <textarea id="json-editor" class="json-editor" spellcheck="false"></textarea>
+        </details>
 
         <details class="prompt-details">
           <summary>Provider Prompt</summary>
@@ -116,8 +130,10 @@ export class QuestionGenerationStudio {
     this.jsonEditor = this.root.querySelector("#json-editor") ?? undefined;
     this.validationPanel = this.root.querySelector("#validation-panel") ?? undefined;
     this.promptPanel = this.root.querySelector("#prompt-panel") ?? undefined;
+    this.questionReviewPanel = this.root.querySelector("#question-review-panel") ?? undefined;
 
     this.bindEvents();
+    this.renderSavedDraftActions();
   }
 
   private bindEvents(): void {
@@ -125,6 +141,9 @@ export class QuestionGenerationStudio {
     const validateButton = this.root.querySelector<HTMLButtonElement>("#validate-draft");
     const previewButton = this.root.querySelector<HTMLButtonElement>("#preview-draft");
     const downloadButton = this.root.querySelector<HTMLButtonElement>("#download-draft");
+    const saveButton = this.root.querySelector<HTMLButtonElement>("#save-draft");
+    const sourceFileInput = this.root.querySelector<HTMLInputElement>('input[name="sourceFile"]');
+    const notesInput = this.root.querySelector<HTMLTextAreaElement>('textarea[name="notes"]');
 
     form?.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -156,6 +175,45 @@ export class QuestionGenerationStudio {
       }
     });
 
+    sourceFileInput?.addEventListener("change", async () => {
+      const file = sourceFileInput.files?.[0];
+
+      if (!file || !notesInput) {
+        return;
+      }
+
+      notesInput.value = await file.text();
+      this.renderGenerationStatus(`Imported ${file.name} into instructor notes.`);
+    });
+
+    this.jsonEditor?.addEventListener("input", () => {
+      const draft = this.readDraftFromEditor(false);
+
+      if (draft) {
+        this.renderQuestionReview(draft);
+      }
+    });
+
+    this.questionReviewPanel?.addEventListener("click", (event) => {
+      const target = (event.target as HTMLElement).closest<HTMLElement>("[data-review-action]");
+
+      if (!target) {
+        return;
+      }
+
+      const action = target.dataset.reviewAction ?? "";
+      const questionId = target.dataset.questionId ?? this.selectedQuestionId ?? "";
+
+      if (action === "regenerate") {
+        if (form) {
+          void this.regenerateQuestion(questionId, new FormData(form));
+        }
+        return;
+      }
+
+      this.applyQuestionAction(action, questionId);
+    });
+
     validateButton?.addEventListener("click", () => {
       this.validateCurrentDraft();
     });
@@ -174,6 +232,14 @@ export class QuestionGenerationStudio {
 
       if (draft) {
         this.downloadDraft(draft);
+      }
+    });
+
+    saveButton?.addEventListener("click", () => {
+      const draft = this.validateCurrentDraft();
+
+      if (draft) {
+        this.saveDraft(draft);
       }
     });
   }
@@ -211,6 +277,8 @@ export class QuestionGenerationStudio {
     }
 
     this.jsonEditor.value = `${JSON.stringify(quiz, null, 2)}\n`;
+    this.selectedQuestionId = quiz.questions[0]?.id;
+    this.renderQuestionReview(quiz);
     this.validateCurrentDraft();
   }
 
@@ -219,20 +287,36 @@ export class QuestionGenerationStudio {
       return undefined;
     }
 
+    return this.readDraftFromEditor(true);
+  }
+
+  private readDraftFromEditor(renderErrors: boolean): QuizFile | undefined {
+    if (!this.jsonEditor || !this.validationPanel) {
+      return undefined;
+    }
+
     try {
-      const rawDraft = JSON.parse(this.jsonEditor.value) as unknown;
-      const validation = this.validator.validate(rawDraft);
+      const validation = this.validator.validate(JSON.parse(this.jsonEditor.value) as unknown);
 
       if (!validation.data) {
-        this.renderValidationErrors(validation.errors);
+        if (renderErrors) {
+          this.renderValidationErrors(validation.errors);
+        }
         return undefined;
       }
 
+      this.selectedQuestionId =
+        validation.data.questions.some((question) => question.id === this.selectedQuestionId)
+          ? this.selectedQuestionId
+          : validation.data.questions[0]?.id;
+      this.renderQuestionReview(validation.data);
       this.validationPanel.className = "validation-panel is-valid";
       this.validationPanel.textContent = `${validation.data.questions.length} draft questions are valid. Review before using live.`;
       return validation.data;
     } catch (error) {
-      this.renderValidationErrors([error instanceof Error ? error.message : String(error)]);
+      if (renderErrors) {
+        this.renderValidationErrors([error instanceof Error ? error.message : String(error)]);
+      }
       return undefined;
     }
   }
@@ -257,6 +341,203 @@ export class QuestionGenerationStudio {
     this.validationPanel.textContent = message;
   }
 
+  private renderQuestionReview(quiz: QuizFile): void {
+    if (!this.questionReviewPanel) {
+      return;
+    }
+
+    if (quiz.questions.length === 0) {
+      this.questionReviewPanel.className = "question-review-panel is-empty";
+      this.questionReviewPanel.textContent = "This draft has no questions yet.";
+      return;
+    }
+
+    const selectedQuestion = quiz.questions.find((question) => question.id === this.selectedQuestionId) ?? quiz.questions[0];
+    this.selectedQuestionId = selectedQuestion.id;
+    this.questionReviewPanel.className = "question-review-panel";
+    this.questionReviewPanel.innerHTML = `
+      <div class="question-review-list">
+        ${quiz.questions.map((question, index) => this.renderQuestionListItem(question, index)).join("")}
+      </div>
+      <article class="question-review-detail">
+        <div>
+          <p class="generator-eyebrow">${escapeHtml(selectedQuestion.type)} ${isBossQuestion(selectedQuestion) ? " - Boss" : ""}</p>
+          <h3>${escapeHtml(selectedQuestion.question)}</h3>
+        </div>
+        <dl>
+          <div><dt>Points</dt><dd>${selectedQuestion.points ?? 100}</dd></div>
+          <div><dt>Time</dt><dd>${selectedQuestion.timeLimit ?? 20}s</dd></div>
+          <div><dt>ID</dt><dd>${escapeHtml(selectedQuestion.id)}</dd></div>
+        </dl>
+        ${this.renderQuestionAnswers(selectedQuestion)}
+        ${
+          selectedQuestion.explanation
+            ? `<p class="question-review-explanation">${escapeHtml(selectedQuestion.explanation)}</p>`
+            : `<p class="question-review-explanation is-missing">No explanation yet.</p>`
+        }
+        <div class="question-review-actions">
+          <button type="button" data-review-action="regenerate" data-question-id="${escapeHtml(selectedQuestion.id)}">Regenerate This</button>
+          <button type="button" data-review-action="easier" data-question-id="${escapeHtml(selectedQuestion.id)}">Make Easier</button>
+          <button type="button" data-review-action="harder" data-question-id="${escapeHtml(selectedQuestion.id)}">Make Harder</button>
+          <button type="button" data-review-action="explain" data-question-id="${escapeHtml(selectedQuestion.id)}">Add Explanation</button>
+          <button type="button" data-review-action="boss" data-question-id="${escapeHtml(selectedQuestion.id)}">${isBossQuestion(selectedQuestion) ? "Remove Boss" : "Mark Boss"}</button>
+          <button type="button" data-review-action="duplicate" data-question-id="${escapeHtml(selectedQuestion.id)}">Duplicate</button>
+          <button type="button" data-review-action="remove" data-question-id="${escapeHtml(selectedQuestion.id)}">Remove</button>
+        </div>
+      </article>
+    `;
+  }
+
+  private renderQuestionListItem(question: QuizQuestion, index: number): string {
+    const isSelected = question.id === this.selectedQuestionId;
+
+    return `
+      <button type="button" class="${isSelected ? "is-selected" : ""}" data-review-action="select" data-question-id="${escapeHtml(question.id)}">
+        <strong>${index + 1}. ${escapeHtml(question.question)}</strong>
+        <span>${escapeHtml(question.type)}${isBossQuestion(question) ? " - Boss" : ""}</span>
+      </button>
+    `;
+  }
+
+  private renderQuestionAnswers(question: QuizQuestion): string {
+    switch (question.type) {
+      case "multiple-choice":
+      case "code-question":
+        return `
+          ${question.type === "code-question" ? `<pre><code>${escapeHtml(question.code)}</code></pre>` : ""}
+          <ol class="question-review-answers">
+            ${question.answers
+              .map(
+                (answer, index) => `
+                  <li class="${index === question.correct ? "is-correct" : ""}">
+                    <span>${String.fromCharCode(65 + index)}</span>
+                    <strong>${escapeHtml(answer)}</strong>
+                  </li>
+                `
+              )
+              .join("")}
+          </ol>
+        `;
+      case "true-false":
+        return `<p class="question-review-answer">Correct answer: <strong>${question.answer ? "True" : "False"}</strong></p>`;
+      case "fill-blank":
+        return `<p class="question-review-answer">Accepted: <strong>${question.answers.map(escapeHtml).join(" / ")}</strong></p>`;
+    }
+  }
+
+  private applyQuestionAction(action: string, questionId: string): void {
+    const draft = this.validateCurrentDraft();
+
+    if (!draft) {
+      return;
+    }
+
+    const index = draft.questions.findIndex((question) => question.id === questionId);
+
+    if (index < 0) {
+      return;
+    }
+
+    if (action === "select") {
+      this.selectedQuestionId = questionId;
+      this.renderQuestionReview(draft);
+      return;
+    }
+
+    const nextQuestions = [...draft.questions];
+    const question = nextQuestions[index];
+
+    switch (action) {
+      case "remove":
+        nextQuestions.splice(index, 1);
+        this.selectedQuestionId = nextQuestions[Math.min(index, nextQuestions.length - 1)]?.id;
+        break;
+      case "duplicate": {
+        const copy = { ...question, id: createUniqueQuestionId(draft, `${question.id}-copy`) } as QuizQuestion;
+        nextQuestions.splice(index + 1, 0, copy);
+        this.selectedQuestionId = copy.id;
+        break;
+      }
+      case "easier":
+        nextQuestions[index] = {
+          ...question,
+          points: Math.max(50, Math.round((question.points ?? 100) * 0.75)),
+          timeLimit: Math.min(120, (question.timeLimit ?? 20) + 10)
+        };
+        break;
+      case "harder":
+        nextQuestions[index] = {
+          ...question,
+          points: Math.min(1000, Math.round((question.points ?? 100) * 1.25)),
+          timeLimit: Math.max(5, (question.timeLimit ?? 20) - 5)
+        };
+        break;
+      case "explain":
+        nextQuestions[index] = {
+          ...question,
+          explanation: question.explanation ?? createExplanationPlaceholder(question)
+        };
+        break;
+      case "boss":
+        nextQuestions[index] = toggleBossTag(question);
+        break;
+    }
+
+    this.setDraft({ ...draft, questions: nextQuestions });
+  }
+
+  private async regenerateQuestion(questionId: string, formData: FormData): Promise<void> {
+    const draft = this.validateCurrentDraft();
+
+    if (!draft) {
+      return;
+    }
+
+    const index = draft.questions.findIndex((question) => question.id === questionId);
+    const current = draft.questions[index];
+
+    if (!current) {
+      return;
+    }
+
+    const request = this.readRequest(formData);
+    const provider = this.createProvider(formData);
+    const counts = QUESTION_TYPES.reduce(
+      (memo, type) => {
+        memo[type] = type === current.type ? 1 : 0;
+        return memo;
+      },
+      {} as Record<QuestionType, number>
+    );
+
+    try {
+      this.renderGenerationStatus(`Regenerating question with ${provider.name}...`);
+      const result = await provider.generateQuestions({
+        ...request,
+        counts,
+        notes: `${request.notes}\n\nRegenerate this question as a stronger replacement:\n${JSON.stringify(current, null, 2)}`
+      });
+      const replacement = result.quiz.questions[0];
+
+      if (!replacement) {
+        this.renderValidationErrors(["The provider did not return a replacement question."]);
+        return;
+      }
+
+      const nextQuestions = [...draft.questions];
+      nextQuestions[index] = { ...replacement, id: current.id };
+      this.setDraft({ ...draft, questions: nextQuestions });
+
+      if (this.promptPanel) {
+        this.promptPanel.value = result.prompt;
+      }
+
+      this.renderGenerationStatus(`Regenerated "${current.id}" with ${result.providerName}.`, true);
+    } catch (error) {
+      this.renderValidationErrors([error instanceof Error ? error.message : String(error)]);
+    }
+  }
+
   private downloadDraft(quiz: QuizFile): void {
     const blob = new Blob([`${JSON.stringify(quiz, null, 2)}\n`], { type: "application/json" });
     const link = document.createElement("a");
@@ -265,6 +546,68 @@ export class QuestionGenerationStudio {
     link.click();
     URL.revokeObjectURL(link.href);
   }
+
+  private saveDraft(quiz: QuizFile): void {
+    const savedDrafts = readSavedDrafts();
+    const key = slugify(quiz.title);
+    savedDrafts[key] = {
+      title: quiz.title,
+      savedAt: new Date().toISOString(),
+      quiz
+    };
+    localStorage.setItem(SAVED_DRAFTS_STORAGE_KEY, JSON.stringify(savedDrafts));
+    this.renderSavedDraftActions();
+    this.renderGenerationStatus(`Saved "${quiz.title}" to the browser quiz bank.`, true);
+  }
+
+  private renderSavedDraftActions(): void {
+    const form = this.root.querySelector<HTMLFormElement>("#generation-form");
+
+    if (!form) {
+      return;
+    }
+
+    form.querySelector(".saved-drafts")?.remove();
+    const savedDrafts = readSavedDrafts();
+    const entries = Object.entries(savedDrafts);
+
+    if (entries.length === 0) {
+      return;
+    }
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "saved-drafts generation-form__wide";
+    wrapper.innerHTML = `
+      <label>
+        <span>Browser Quiz Bank</span>
+        <select name="savedDraft">
+          ${entries
+            .map(
+              ([key, value]) =>
+                `<option value="${escapeHtml(key)}">${escapeHtml(value.title)} - ${new Date(value.savedAt).toLocaleDateString()}</option>`
+            )
+            .join("")}
+        </select>
+      </label>
+      <button type="button">Load Quiz</button>
+    `;
+    wrapper.querySelector("button")?.addEventListener("click", () => {
+      const key = wrapper.querySelector<HTMLSelectElement>('select[name="savedDraft"]')?.value ?? "";
+      const saved = readSavedDrafts()[key];
+
+      if (saved) {
+        this.setDraft(saved.quiz);
+        this.renderGenerationStatus(`Loaded saved draft "${saved.title}".`, true);
+      }
+    });
+    form.querySelector(".generation-actions")?.before(wrapper);
+  }
+}
+
+interface SavedDraftRecord {
+  title: string;
+  savedAt: string;
+  quiz: QuizFile;
 }
 
 export function readGeneratedDraft(): QuizFile | undefined {
@@ -296,6 +639,60 @@ function readLevel(value: FormDataEntryValue | null): QuestionGenerationRequest[
 
 function slugify(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "revealquiz-draft";
+}
+
+function readSavedDrafts(): Record<string, SavedDraftRecord> {
+  try {
+    const value = localStorage.getItem(SAVED_DRAFTS_STORAGE_KEY);
+    return value ? (JSON.parse(value) as Record<string, SavedDraftRecord>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function createUniqueQuestionId(quiz: QuizFile, baseId: string): string {
+  const existingIds = new Set(quiz.questions.map((question) => question.id));
+  const safeBase = baseId.replace(/[^A-Za-z0-9_-]/g, "-") || "question";
+  let candidate = safeBase;
+  let suffix = 2;
+
+  while (existingIds.has(candidate)) {
+    candidate = `${safeBase}-${suffix}`;
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function isBossQuestion(question: QuizQuestion): boolean {
+  return question.tags?.includes("boss") ?? false;
+}
+
+function toggleBossTag(question: QuizQuestion): QuizQuestion {
+  const tags = new Set(question.tags ?? []);
+
+  if (tags.has("boss")) {
+    tags.delete("boss");
+  } else {
+    tags.add("boss");
+  }
+
+  return {
+    ...question,
+    tags: tags.size > 0 ? [...tags] : undefined
+  };
+}
+
+function createExplanationPlaceholder(question: QuizQuestion): string {
+  switch (question.type) {
+    case "multiple-choice":
+    case "code-question":
+      return `The correct answer is "${question.answers[question.correct]}" because it best matches the concept being tested.`;
+    case "true-false":
+      return `The statement is ${question.answer ? "true" : "false"} based on the concept being tested.`;
+    case "fill-blank":
+      return `Accepted answers include ${question.answers.join(" / ")}.`;
+  }
 }
 
 function escapeHtml(value: string): string {
