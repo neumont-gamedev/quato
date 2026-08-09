@@ -1,6 +1,7 @@
 import { QuestionFactory } from "../quiz/QuestionFactory";
 import type { QuizQuestion } from "../types/Question";
 import { escapeHtml } from "../questions/QuestionRenderer";
+import { isBossQuestion } from "../quiz/GameRules";
 
 export class SlideGenerator {
   constructor(private readonly questionFactory: QuestionFactory) {}
@@ -13,8 +14,9 @@ export class SlideGenerator {
     card.innerHTML = `
       <div class="quiz-card__meta">
         <span>Question ${position} / ${total}</span>
-        <span>${question.points ?? 100} pts</span>
+        <span>${isBossQuestion(question) ? "Boss Round" : `${question.points ?? 100} pts`}</span>
       </div>
+      ${isBossQuestion(question) ? `<p class="quiz-badge">Boss Round</p>` : ""}
       <h2>${escapeHtml(question.question)}</h2>
       ${renderInstructorQuestionDisplay(question)}
       <div class="quiz-feedback-region"></div>

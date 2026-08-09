@@ -24,7 +24,7 @@ export class QuizEngine {
     private readonly options: QuizEngineOptions = {}
   ) {
     this.questionsById = new Map(quiz.questions.map((question) => [question.id, question]));
-    this.scoreManager = new ScoreManager(quiz.questions.length);
+    this.scoreManager = new ScoreManager(quiz.questions.length, quiz.game);
   }
 
   mount(): void {

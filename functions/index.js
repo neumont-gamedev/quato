@@ -72,6 +72,7 @@ exports.revealQuestion = onCall({ region: "us-central1" }, async (request) => {
     const answers = answersSnapshot.docs.map((doc) => doc.data());
     const awards = scoreQuestionForPlayers({
       question,
+      game: quiz.game,
       answers,
       players,
       questionStartedAt: session.questionStartedAt
@@ -228,7 +229,9 @@ function scoreQuestionForPlayers(options) {
     const basePoints = options.question.points || 100;
     const speedBonus = isCorrect ? calculateSpeedBonus(options.question, answer, options.questionStartedAt) : 0;
     const streakBonus = isCorrect && nextStreak > 0 && nextStreak % 3 === 0 ? 100 : 0;
-    const points = isCorrect ? basePoints + speedBonus + streakBonus : 0;
+    const rawPoints = basePoints + speedBonus + streakBonus;
+    const multiplier = getQuestionMultiplier(options.question, options.game);
+    const points = isCorrect ? Math.round(rawPoints * multiplier) : 0;
 
     return {
       uid: player.uid,
@@ -237,11 +240,21 @@ function scoreQuestionForPlayers(options) {
       points,
       speedBonus,
       streakBonus,
+      multiplier,
       score: player.score + points,
       streak: nextStreak,
       timedOut: !!answer && !submittedWithinLimit
     };
   });
+}
+
+function getQuestionMultiplier(question, game) {
+  if (!Array.isArray(question.tags) || !question.tags.includes("boss")) {
+    return 1;
+  }
+
+  const multiplier = game && typeof game.bossMultiplier === "number" ? game.bossMultiplier : 2;
+  return multiplier > 1 && multiplier <= 10 ? multiplier : 2;
 }
 
 function isAnswerCorrect(question, value) {

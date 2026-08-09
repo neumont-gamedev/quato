@@ -1,6 +1,9 @@
 {
   "title": "C++ Random Numbers",
   "description": "A second quiz file to demonstrate Phase 2 content swapping.",
+  "game": {
+    "bossMultiplier": 2
+  },
   "questions": [
     {
       "id": "q1",
@@ -33,6 +36,7 @@
       ],
       "correct": 0,
       "points": 150,
+      "tags": ["boss"],
       "explanation": "uniform_int_distribution<int> models integer results across the inclusive range."
     }
   ]

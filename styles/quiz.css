@@ -130,6 +130,19 @@ body {
   text-transform: uppercase;
 }
 
+.quiz-badge {
+  justify-self: start;
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid rgb(244 201 93 / 50%);
+  border-radius: 8px;
+  background: rgb(244 201 93 / 12%);
+  color: var(--rq-yellow);
+  font-size: clamp(0.74rem, 1.8vh, 0.95rem);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .quiz-card h2 {
   margin: 0;
   font-size: clamp(1.6rem, 5.4vh, 3.2rem);

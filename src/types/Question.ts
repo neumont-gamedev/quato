@@ -7,6 +7,7 @@ export interface BaseQuestion {
   points?: number;
   timeLimit?: number;
   explanation?: string;
+  tags?: string[];
 }
 
 export interface MultipleChoiceQuestion extends BaseQuestion {
@@ -43,7 +44,12 @@ export type QuizQuestion =
 export interface QuizFile {
   title: string;
   description?: string;
+  game?: QuizGameConfig;
   questions: QuizQuestion[];
+}
+
+export interface QuizGameConfig {
+  bossMultiplier?: number;
 }
 
 export interface ValidationResult<T> {
@@ -115,7 +121,8 @@ export function toPublicQuestion(question: QuizQuestion): PublicQuestion {
   const publicBase = {
     ...base,
     ...(question.points === undefined ? {} : { points: question.points }),
-    ...(question.timeLimit === undefined ? {} : { timeLimit: question.timeLimit })
+    ...(question.timeLimit === undefined ? {} : { timeLimit: question.timeLimit }),
+    ...(question.tags === undefined ? {} : { tags: question.tags })
   };
 
   switch (question.type) {

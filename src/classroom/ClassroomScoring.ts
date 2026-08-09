@@ -1,5 +1,6 @@
 import type { ClassroomAnswer, ClassroomPlayer } from "./types";
-import type { QuizQuestion } from "../types/Question";
+import type { QuizGameConfig, QuizQuestion } from "../types/Question";
+import { applyQuestionMultiplier, getQuestionMultiplier } from "../quiz/GameRules";
 
 export interface ClassroomScoreAward {
   uid: string;
@@ -8,12 +9,14 @@ export interface ClassroomScoreAward {
   points: number;
   speedBonus: number;
   streakBonus: number;
+  multiplier: number;
   score: number;
   streak: number;
 }
 
 export function scoreQuestionForPlayers(options: {
   question: QuizQuestion;
+  game?: QuizGameConfig;
   answers: ClassroomAnswer[];
   players: ClassroomPlayer[];
   questionStartedAt?: unknown;
@@ -27,7 +30,7 @@ export function scoreQuestionForPlayers(options: {
     const basePoints = options.question.points ?? 100;
     const speedBonus = isCorrect ? calculateSpeedBonus(options.question, answer, options.questionStartedAt) : 0;
     const streakBonus = isCorrect && nextStreak > 0 && nextStreak % 3 === 0 ? 100 : 0;
-    const points = isCorrect ? basePoints + speedBonus + streakBonus : 0;
+    const points = isCorrect ? applyQuestionMultiplier(basePoints + speedBonus + streakBonus, options.question, options.game) : 0;
 
     return {
       uid: player.uid,
@@ -36,6 +39,7 @@ export function scoreQuestionForPlayers(options: {
       points,
       speedBonus,
       streakBonus,
+      multiplier: getQuestionMultiplier(options.question, options.game),
       score: player.score + points,
       streak: nextStreak
     };

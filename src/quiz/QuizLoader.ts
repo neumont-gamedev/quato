@@ -5,6 +5,7 @@ import type {
   QuizFile,
   QuizQuestion,
   TrueFalseQuestion,
+  QuizGameConfig,
   ValidationResult
 } from "../types/Question";
 
@@ -46,6 +47,7 @@ export class QuizLoader {
 
     const ids = new Set<string>();
     const questions: QuizQuestion[] = [];
+    const game = validateGameConfig(rawData.game, errors);
 
     rawData.questions.forEach((question, index) => {
       const prefix = `questions[${index}]`;
@@ -71,6 +73,7 @@ export class QuizLoader {
       data: {
         title: rawData.title as string,
         description: typeof rawData.description === "string" ? rawData.description : undefined,
+        ...(game === undefined ? {} : { game }),
         questions
       },
       errors: []
@@ -89,6 +92,7 @@ export class QuizLoader {
     const question = readRequiredString(rawQuestion, "question", prefix, errors);
     const points = readOptionalPositiveInteger(rawQuestion, "points", prefix, errors);
     const timeLimit = readOptionalPositiveInteger(rawQuestion, "timeLimit", prefix, errors);
+    const tags = readOptionalTags(rawQuestion, prefix, errors);
     const explanation =
       typeof rawQuestion.explanation === "string" && rawQuestion.explanation.trim().length > 0
         ? rawQuestion.explanation
@@ -102,7 +106,7 @@ export class QuizLoader {
       return { errors };
     }
 
-    const base = { id, type, question, points, timeLimit, explanation };
+    const base = { id, type, question, points, timeLimit, explanation, tags };
 
     switch (type) {
       case "multiple-choice":
@@ -122,7 +126,7 @@ export class QuizLoader {
 function validateMultipleChoice(
   rawQuestion: Record<string, unknown>,
   prefix: string,
-  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string }
+  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string; tags?: string[] }
 ): ValidationResult<MultipleChoiceQuestion> {
   const errors: string[] = [];
 
@@ -169,7 +173,7 @@ function validateMultipleChoice(
 function validateTrueFalse(
   rawQuestion: Record<string, unknown>,
   prefix: string,
-  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string }
+  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string; tags?: string[] }
 ): ValidationResult<TrueFalseQuestion> {
   if (typeof rawQuestion.answer !== "boolean") {
     return { errors: [`${prefix}.answer must be true or false.`] };
@@ -188,7 +192,7 @@ function validateTrueFalse(
 function validateCodeQuestion(
   rawQuestion: Record<string, unknown>,
   prefix: string,
-  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string }
+  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string; tags?: string[] }
 ): ValidationResult<CodeQuestion> {
   const errors: string[] = [];
 
@@ -245,7 +249,7 @@ function validateCodeQuestion(
 function validateFillBlank(
   rawQuestion: Record<string, unknown>,
   prefix: string,
-  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string }
+  base: { id: string; type: string; question: string; points?: number; timeLimit?: number; explanation?: string; tags?: string[] }
 ): ValidationResult<FillBlankQuestion> {
   const errors: string[] = [];
 
@@ -314,6 +318,49 @@ function readOptionalPositiveInteger(
   }
 
   return value;
+}
+
+function readOptionalTags(record: Record<string, unknown>, prefix: string, errors: string[]): string[] | undefined {
+  if (record.tags === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(record.tags)) {
+    errors.push(`${prefix}.tags must be an array of strings when provided.`);
+    return undefined;
+  }
+
+  const tags = record.tags.filter((tag): tag is string => typeof tag === "string" && /^[a-z][a-z0-9-]*$/.test(tag));
+
+  if (tags.length !== record.tags.length) {
+    errors.push(`${prefix}.tags may only contain lowercase tag strings such as "boss".`);
+    return undefined;
+  }
+
+  return Array.from(new Set(tags));
+}
+
+function validateGameConfig(rawGame: unknown, errors: string[]): QuizGameConfig | undefined {
+  if (rawGame === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(rawGame)) {
+    errors.push("game must be an object when provided.");
+    return undefined;
+  }
+
+  const game: QuizGameConfig = {};
+
+  if (rawGame.bossMultiplier !== undefined) {
+    if (typeof rawGame.bossMultiplier !== "number" || rawGame.bossMultiplier < 1 || rawGame.bossMultiplier > 10) {
+      errors.push("game.bossMultiplier must be a number from 1 to 10 when provided.");
+    } else {
+      game.bossMultiplier = rawGame.bossMultiplier;
+    }
+  }
+
+  return Object.keys(game).length === 0 ? undefined : game;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
