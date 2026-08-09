@@ -38,6 +38,7 @@ export class MarkdownPresentationLoader {
       .filter(Boolean);
 
     slides.replaceChildren();
+    slides.append(createJoinSlide());
 
     sections.forEach((sectionMarkdown) => {
       const questionReference = sectionMarkdown.match(/^@question\s+([A-Za-z0-9_-]+)$/m);
@@ -82,6 +83,21 @@ export class MarkdownPresentationLoader {
 
     return { errors, questionIds };
   }
+}
+
+function createJoinSlide(): HTMLElement {
+  const section = document.createElement("section");
+  section.dataset.joinSlide = "true";
+  section.innerHTML = `
+    <div class="join-slide">
+      <p>Live Session</p>
+      <h1>Join The Quiz</h1>
+      <div class="join-slide__status">
+        <span>Start the live session to create a join code.</span>
+      </div>
+    </div>
+  `;
+  return section;
 }
 
 function renderMarkdownSection(markdown: string): string {

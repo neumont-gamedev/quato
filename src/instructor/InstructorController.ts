@@ -1,3 +1,4 @@
+import QRCode from "qrcode";
 import type { Unsubscribe } from "firebase/firestore";
 import { renderCharacterSprite } from "../classroom/CharacterSprites";
 import { createLeaderboardEntries, createTeamLeaderboardEntries } from "../classroom/Leaderboard";
@@ -25,6 +26,8 @@ export class InstructorController {
   private lastLeaderboardRanks = new Map<string, number>();
   private rankMovements = new Map<string, number>();
   private leaderboardRankSignature = "";
+  private joinQrUrl = "";
+  private joinQrDataUrl = "";
   private readonly handleKeyboardLock = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement | null;
     const isEditable =
@@ -353,6 +356,7 @@ export class InstructorController {
       `;
       this.bindPanelActions();
       this.applyPanelVisibility();
+      this.renderJoinSlide();
       return;
     }
 
@@ -382,6 +386,76 @@ export class InstructorController {
     `;
     this.bindPanelActions();
     this.applyPanelVisibility();
+    this.renderJoinSlide(joinUrl);
+  }
+
+  private renderJoinSlide(joinUrl = ""): void {
+    const slide = document.querySelector<HTMLElement>('section[data-join-slide="true"]');
+
+    if (!slide) {
+      return;
+    }
+
+    if (!this.session || !joinUrl) {
+      slide.innerHTML = `
+        <div class="join-slide">
+          <p>Live Session</p>
+          <h1>Join The Quiz</h1>
+          <div class="join-slide__status">
+            <span>Start the live session to create a join code.</span>
+            <button type="button" data-action="start">Start Live Session</button>
+          </div>
+        </div>
+      `;
+      slide.querySelector<HTMLElement>('[data-action="start"]')?.addEventListener("click", () => {
+        void this.startSession();
+      });
+      return;
+    }
+
+    const qrMarkup =
+      this.joinQrUrl === joinUrl && this.joinQrDataUrl
+        ? `<img src="${this.joinQrDataUrl}" alt="QR code for ${escapePanelText(this.session.code)} join link" />`
+        : `<div class="join-slide__qr join-slide__qr--loading">Creating QR...</div>`;
+
+    slide.innerHTML = `
+      <div class="join-slide">
+        <p>Live Session</p>
+        <h1>Join The Quiz</h1>
+        <div class="join-slide__grid">
+          <div class="join-slide__code">
+            <span>Join Code</span>
+            <strong>${this.session.code}</strong>
+            <em>${this.players.length} joined</em>
+          </div>
+          <div class="join-slide__qr">
+            ${qrMarkup}
+          </div>
+        </div>
+        <div class="join-slide__url">${escapePanelText(joinUrl)}</div>
+      </div>
+    `;
+
+    if (this.joinQrUrl !== joinUrl || !this.joinQrDataUrl) {
+      void this.createJoinQrCode(joinUrl);
+    }
+  }
+
+  private async createJoinQrCode(joinUrl: string): Promise<void> {
+    const qrDataUrl = await QRCode.toDataURL(joinUrl, {
+      width: 320,
+      margin: 1,
+      color: {
+        dark: "#061016",
+        light: "#ffffff"
+      }
+    });
+
+    if (this.session && joinUrl === `${location.origin}/?mode=student&code=${this.session.code}`) {
+      this.joinQrUrl = joinUrl;
+      this.joinQrDataUrl = qrDataUrl;
+      this.renderJoinSlide(joinUrl);
+    }
   }
 
   private createInfoToggle(): void {
