@@ -25,8 +25,15 @@ export class FirebaseAiQuestionProvider implements AiQuestionProvider {
 
     const result = await generateWithFriendlyErrors(model, prompt);
     const rawText = result.response.text();
-    const parsed = parseJsonResponse(rawText);
-    const validation = this.validator.validate(parsed);
+    let parsed = parseJsonResponse(rawText);
+    let validation = this.validator.validate(parsed);
+
+    if (!validation.data) {
+      const repairPrompt = buildRepairPrompt(prompt, parsed, validation.errors);
+      const repairResult = await generateWithFriendlyErrors(model, repairPrompt);
+      parsed = parseJsonResponse(repairResult.response.text());
+      validation = this.validator.validate(parsed);
+    }
 
     if (!validation.data) {
       throw new Error(`Firebase AI returned invalid quiz JSON: ${validation.errors.join(" ")}`);
@@ -38,6 +45,29 @@ export class FirebaseAiQuestionProvider implements AiQuestionProvider {
       quiz: validation.data
     };
   }
+}
+
+function buildRepairPrompt(originalPrompt: string, invalidJson: unknown, errors: string[]): string {
+  return [
+    "Repair this RevealQuiz JSON so it passes validation.",
+    "Return valid JSON only. Do not wrap the result in Markdown fences.",
+    "",
+    "Validation errors:",
+    ...errors.map((error) => `- ${error}`),
+    "",
+    "Critical schema reminders:",
+    "- multiple-choice requires answers with at least 4 non-empty strings and correct as a zero-based index.",
+    "- code-question requires code, answers with at least 4 non-empty strings, and correct as a zero-based index.",
+    "- true-false requires answer as a boolean and should not use answers.",
+    "- fill-blank requires answers with at least 1 accepted answer string.",
+    "- Preserve the requested counts, topic, level, game settings, explanations preference, and point values.",
+    "",
+    "Original generation request:",
+    originalPrompt,
+    "",
+    "Invalid JSON to repair:",
+    JSON.stringify(invalidJson, null, 2)
+  ].join("\n");
 }
 
 function parseJsonResponse(text: string): unknown {
