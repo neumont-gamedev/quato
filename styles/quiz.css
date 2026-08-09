@@ -216,6 +216,16 @@ body {
   color: var(--rq-text);
 }
 
+.answer-option--display .answer-option__explanation,
+.fill-blank--display .answer-option__explanation {
+  display: none;
+}
+
+.quiz-slide--revealed .answer-option--display.is-correct-answer .answer-option__explanation,
+.quiz-slide--revealed .fill-blank--display .answer-option__explanation {
+  display: grid;
+}
+
 .answer-option:has(input:checked) {
   border-color: var(--rq-cyan);
   background: var(--rq-panel-strong);

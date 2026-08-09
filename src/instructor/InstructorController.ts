@@ -277,12 +277,11 @@ export class InstructorController {
     const explanationText = question.explanation ?? this.session?.revealedAnswer?.explanation ?? "";
     currentSlide.classList.add("quiz-slide--revealed");
     currentSlide.querySelectorAll<HTMLElement>(".answer-option--display").forEach((option) => {
-      option.querySelector(".answer-option__explanation")?.remove();
       const isCorrect = option.dataset.answerIndex === getCorrectAnswerIndex(question);
       option.classList.toggle("is-correct-answer", isCorrect);
       option.classList.toggle("is-muted-answer", !isCorrect);
 
-      if (isCorrect && explanationText) {
+      if (isCorrect && explanationText && !option.querySelector(".answer-option__explanation")) {
         option.append(createRevealDetails(explanationText));
       }
     });
@@ -290,12 +289,11 @@ export class InstructorController {
     if (question.type === "fill-blank") {
       const answerBox = currentSlide.querySelector<HTMLElement>(".fill-blank--display");
       const blank = answerBox?.querySelector<HTMLElement>("span");
-      answerBox?.querySelector(".answer-option__explanation")?.remove();
 
       if (answerBox && blank) {
         blank.textContent = question.answers.join(" / ");
 
-        if (explanationText) {
+        if (explanationText && !answerBox.querySelector(".answer-option__explanation")) {
           answerBox.append(createRevealDetails(explanationText));
         }
       }
