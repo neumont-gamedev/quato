@@ -3,7 +3,7 @@ import { renderCharacterSprite } from "../classroom/CharacterSprites";
 import { createLeaderboardEntries } from "../classroom/Leaderboard";
 import type { ClassroomScoreAward } from "../classroom/ClassroomScoring";
 import { ClassroomSessionService } from "../classroom/ClassroomSessionService";
-import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession } from "../classroom/types";
+import type { ClassroomAnswer, ClassroomPlayer, ClassroomSession, LeaderboardEntry } from "../classroom/types";
 import type { QuizFile, QuizQuestion } from "../types/Question";
 
 export class InstructorController {
@@ -20,6 +20,9 @@ export class InstructorController {
   private currentSlideSync?: () => { question: QuizQuestion | undefined; questionIndex: number };
   private infoToggle?: HTMLButtonElement;
   private isPanelVisible = true;
+  private lastLeaderboardRanks = new Map<string, number>();
+  private rankMovements = new Map<string, number>();
+  private leaderboardRankSignature = "";
   private readonly handleKeyboardLock = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement | null;
     const isEditable =
@@ -402,19 +405,31 @@ export class InstructorController {
   }
 
   private createLeaderboard(): string {
-    const rankedPlayers = createLeaderboardEntries(this.players);
+    const rankedPlayers = createLeaderboardEntries(this.players, this.players.length);
 
     if (rankedPlayers.length === 0) {
       return "";
     }
 
+    this.updateRankMovements(rankedPlayers);
+
     return `
-      <ol class="classroom-leaderboard" aria-label="Leaderboard">
+      <ol class="classroom-leaderboard ${rankedPlayers.length > 8 ? "is-scrollable" : ""}" aria-label="Leaderboard">
         ${rankedPlayers
           .map((player, index) => {
             const award = this.awards.find((candidate) => candidate.uid === player.uid);
             const points = award && award.points > 0 ? ` <span>+${award.points}</span>` : "";
-            return `<li><strong>${renderCharacterSprite(player.characterIndex, "classroom-player-character")}${index + 1}. ${escapePanelText(player.name)}</strong><em>${player.score}${points}</em></li>`;
+            return `
+              <li>
+                <strong>
+                  <span class="classroom-rank">${index + 1}</span>
+                  ${this.renderRankMovement(player.uid)}
+                  ${renderCharacterSprite(player.characterIndex, "classroom-player-character")}
+                  ${escapePanelText(player.name)}
+                </strong>
+                <em>${player.score}${points}</em>
+              </li>
+            `;
           })
           .join("")}
       </ol>
@@ -428,25 +443,30 @@ export class InstructorController {
       return;
     }
 
-    const rankedPlayers = createLeaderboardEntries(this.players);
+    const rankedPlayers = createLeaderboardEntries(this.players, this.players.length);
 
     if (rankedPlayers.length === 0) {
       return;
     }
 
+    this.updateRankMovements(rankedPlayers);
     currentSlide.classList.add("classroom-leaderboard-slide");
     currentSlide.innerHTML = `
       <div class="leaderboard-stage">
         <p>Leaderboard</p>
         <h2>Current Standings</h2>
         ${this.createQuestionResults()}
-        <ol>
+        <ol class="${rankedPlayers.length > 8 ? "is-scrollable" : ""}">
           ${rankedPlayers
             .map(
               (player, index) => `
                 <li>
-                  <span>${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}</span>
-                  <strong>${index + 1}. ${escapePanelText(player.name)}</strong>
+                  <span class="leaderboard-stage-rank">${index + 1}</span>
+                  <strong>
+                    ${this.renderRankMovement(player.uid)}
+                    ${renderCharacterSprite(player.characterIndex, "leaderboard-stage-character")}
+                    ${escapePanelText(player.name)}
+                  </strong>
                   <em>${player.score.toLocaleString()}</em>
                 </li>
               `
@@ -455,6 +475,39 @@ export class InstructorController {
         </ol>
       </div>
     `;
+  }
+
+  private updateRankMovements(rankedPlayers: LeaderboardEntry[]): void {
+    const signature = rankedPlayers.map((player) => `${player.uid}:${player.score}:${player.streak}`).join("|");
+
+    if (signature === this.leaderboardRankSignature) {
+      return;
+    }
+
+    const nextRanks = new Map(rankedPlayers.map((player, index) => [player.uid, index + 1]));
+    this.rankMovements = new Map(
+      rankedPlayers.map((player, index) => {
+        const nextRank = index + 1;
+        const previousRank = this.lastLeaderboardRanks.get(player.uid);
+        return [player.uid, previousRank ? previousRank - nextRank : 0];
+      })
+    );
+    this.lastLeaderboardRanks = nextRanks;
+    this.leaderboardRankSignature = signature;
+  }
+
+  private renderRankMovement(uid: string): string {
+    const movement = this.rankMovements.get(uid) ?? 0;
+
+    if (movement > 0) {
+      return `<span class="rank-movement is-up" aria-label="Moved up ${movement} rank${movement === 1 ? "" : "s"}"></span>`;
+    }
+
+    if (movement < 0) {
+      return `<span class="rank-movement is-down" aria-label="Moved down ${Math.abs(movement)} rank${movement === -1 ? "" : "s"}"></span>`;
+    }
+
+    return `<span class="rank-movement is-same" aria-hidden="true"></span>`;
   }
 
   private createQuestionResults(): string {

@@ -140,6 +140,13 @@
   list-style: none;
 }
 
+.classroom-leaderboard.is-scrollable {
+  max-height: 360px;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-color: var(--rq-cyan) rgb(255 255 255 / 10%);
+}
+
 .classroom-leaderboard li {
   display: flex;
   align-items: center;
@@ -165,14 +172,45 @@
   gap: 8px;
 }
 
+.classroom-rank {
+  min-width: 2ch;
+  color: var(--rq-muted);
+  font-weight: 900;
+  text-align: right;
+}
+
 .classroom-leaderboard em {
   color: var(--rq-cyan);
   font-style: normal;
   font-weight: 900;
 }
 
-.classroom-leaderboard span {
+.classroom-leaderboard em span {
   color: var(--rq-green);
+}
+
+.rank-movement {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  flex: 0 0 auto;
+}
+
+.rank-movement.is-up {
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid var(--rq-green);
+  border-left: 5px solid transparent;
+}
+
+.rank-movement.is-down {
+  border-top: 8px solid var(--rq-red);
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+}
+
+.rank-movement.is-same {
+  width: 10px;
+  height: 8px;
 }
 
 .classroom-actions button:disabled {
@@ -623,6 +661,13 @@
   list-style: none;
 }
 
+.leaderboard-stage ol.is-scrollable {
+  max-height: min(48vh, 520px);
+  padding-right: 8px;
+  overflow-y: auto;
+  scrollbar-color: var(--rq-cyan) rgb(255 255 255 / 10%);
+}
+
 .leaderboard-stage li,
 .final-stage li {
   display: grid;
@@ -647,8 +692,23 @@
   font-weight: 900;
 }
 
+.leaderboard-stage li .leaderboard-stage-rank {
+  background: rgb(255 255 255 / 9%);
+}
+
 .leaderboard-stage-character {
   --character-size: 34px;
+}
+
+.leaderboard-stage li strong {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.leaderboard-stage li strong .rank-movement {
+  margin-right: 2px;
 }
 
 .leaderboard-stage li strong,
