@@ -23,7 +23,7 @@ export class FirebaseAiQuestionProvider implements AiQuestionProvider {
       }
     });
 
-    const result = await model.generateContent(prompt);
+    const result = await generateWithFriendlyErrors(model, prompt);
     const rawText = result.response.text();
     const parsed = parseJsonResponse(rawText);
     const validation = this.validator.validate(parsed);
@@ -44,4 +44,33 @@ function parseJsonResponse(text: string): unknown {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   return JSON.parse(fenced ? fenced[1] : trimmed);
+}
+
+async function generateWithFriendlyErrors(
+  model: ReturnType<typeof getGenerativeModel>,
+  prompt: string
+): Promise<Awaited<ReturnType<ReturnType<typeof getGenerativeModel>["generateContent"]>>> {
+  try {
+    return await model.generateContent(prompt);
+  } catch (error) {
+    throw new Error(formatFirebaseAiError(error));
+  }
+}
+
+function formatFirebaseAiError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("prepayment credits are depleted") || message.includes("[429") || message.includes("RESOURCE_EXHAUSTED")) {
+    return [
+      "Firebase AI Logic reached Gemini, but Gemini API billing is out of usable credits.",
+      "Add prepaid credits or fix billing in Google AI Studio, then try again.",
+      "You can use the Local Draft Generator provider while billing is being fixed."
+    ].join(" ");
+  }
+
+  if (message.includes("PERMISSION_DENIED")) {
+    return "Firebase AI Logic is not enabled or allowed for this Firebase project yet. Enable AI Logic/Gemini API for quato-1512c, then try again.";
+  }
+
+  return `Firebase AI generation failed: ${message}`;
 }
