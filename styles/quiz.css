@@ -192,6 +192,14 @@ body {
   line-height: 1.2;
 }
 
+.answer-option__explanation {
+  grid-column: 2;
+  color: var(--rq-muted);
+  font-size: clamp(0.78rem, 1.8vh, 1rem);
+  font-weight: 700;
+  line-height: 1.28;
+}
+
 .answer-option:has(input:checked) {
   border-color: var(--rq-cyan);
   background: var(--rq-panel-strong);
@@ -258,6 +266,14 @@ body {
   background: var(--rq-panel);
   color: var(--rq-cyan);
   font-size: clamp(2rem, 8vh, 4rem);
+}
+
+.fill-blank--display .answer-option__explanation {
+  grid-column: 1;
+  max-width: 760px;
+  color: var(--rq-muted);
+  font-size: clamp(0.88rem, 2vh, 1.1rem);
+  text-align: center;
 }
 
 .quiz-slide--revealed .fill-blank--display {

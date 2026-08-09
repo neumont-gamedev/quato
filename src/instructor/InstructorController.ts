@@ -209,15 +209,33 @@ export class InstructorController {
 
     currentSlide.classList.add("quiz-slide--revealed");
     currentSlide.querySelectorAll<HTMLElement>(".answer-option--display").forEach((option) => {
+      option.querySelector(".answer-option__explanation")?.remove();
       const isCorrect = option.dataset.answerIndex === getCorrectAnswerIndex(question);
       option.classList.toggle("is-correct-answer", isCorrect);
       option.classList.toggle("is-muted-answer", !isCorrect);
+
+      if (isCorrect && question.explanation) {
+        const explanation = document.createElement("div");
+        explanation.className = "answer-option__explanation";
+        explanation.textContent = question.explanation;
+        option.append(explanation);
+      }
     });
 
     if (question.type === "fill-blank") {
-      const blank = currentSlide.querySelector<HTMLElement>(".fill-blank--display span");
-      if (blank) {
+      const answerBox = currentSlide.querySelector<HTMLElement>(".fill-blank--display");
+      const blank = answerBox?.querySelector<HTMLElement>("span");
+      answerBox?.querySelector(".answer-option__explanation")?.remove();
+
+      if (answerBox && blank) {
         blank.textContent = question.answers.join(" / ");
+
+        if (question.explanation) {
+          const explanation = document.createElement("div");
+          explanation.className = "answer-option__explanation";
+          explanation.textContent = question.explanation;
+          answerBox.append(explanation);
+        }
       }
     }
   }
