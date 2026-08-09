@@ -283,10 +283,7 @@ export class InstructorController {
       option.classList.toggle("is-muted-answer", !isCorrect);
 
       if (isCorrect && explanationText) {
-        const explanation = document.createElement("div");
-        explanation.className = "answer-option__explanation";
-        explanation.textContent = explanationText;
-        option.append(explanation);
+        option.append(createRevealDetails(explanationText));
       }
     });
 
@@ -299,10 +296,7 @@ export class InstructorController {
         blank.textContent = question.answers.join(" / ");
 
         if (explanationText) {
-          const explanation = document.createElement("div");
-          explanation.className = "answer-option__explanation";
-          explanation.textContent = explanationText;
-          answerBox.append(explanation);
+          answerBox.append(createRevealDetails(explanationText));
         }
       }
     }
@@ -613,6 +607,17 @@ function csvCell(value: string | number): string {
 
 function cssEscape(value: string): string {
   return globalThis.CSS?.escape ? globalThis.CSS.escape(value) : value.replace(/["\\]/g, "\\$&");
+}
+
+function createRevealDetails(text: string): HTMLElement {
+  const detail = document.createElement("div");
+  const label = document.createElement("strong");
+  const body = document.createElement("span");
+  detail.className = "answer-option__explanation";
+  label.textContent = "Details";
+  body.textContent = text;
+  detail.append(label, body);
+  return detail;
 }
 
 function getCorrectAnswerIndex(question: QuizQuestion): string {

@@ -38,7 +38,6 @@ export class StudentClient {
   private renderJoin(): void {
     this.root.innerHTML = `
       <section class="student-card">
-        <p class="student-eyebrow">RevealQuiz</p>
         <h1>Join Session</h1>
         <form id="student-join-form" class="student-form">
           <label>
@@ -51,14 +50,14 @@ export class StudentClient {
           </label>
           <div class="student-character-picker" aria-label="Choose your character">
             <button class="student-character-arrow" type="button" data-character-step="-1" aria-label="Previous character">
-              <span aria-hidden="true">‹</span>
+              <span aria-hidden="true">&lsaquo;</span>
             </button>
             <button class="student-character-select is-selected" type="button" aria-label="Select current character">
               ${renderCharacterSprite(this.selectedCharacterIndex, "student-character-preview")}
               <span>Selected</span>
             </button>
             <button class="student-character-arrow" type="button" data-character-step="1" aria-label="Next character">
-              <span aria-hidden="true">›</span>
+              <span aria-hidden="true">&rsaquo;</span>
             </button>
           </div>
           <input type="hidden" name="characterIndex" value="${this.selectedCharacterIndex}" />
