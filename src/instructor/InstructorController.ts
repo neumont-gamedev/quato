@@ -104,11 +104,21 @@ export class InstructorController {
           return;
         }
 
-        if (isLeaderboardSlide && previousQuestion && this.session.status === "question-open") {
+        if (isLeaderboardSlide && this.session.status === "question-open") {
+          const questionToReveal =
+            this.getQuestionForLeaderboardSlide(currentSlide) ??
+            previousQuestion ??
+            this.quiz.questions.find((candidate) => candidate.id === this.session?.currentQuestionId);
+
+          if (!questionToReveal) {
+            return;
+          }
+
           window.RevealQuizDeck?.prev();
-          this.activeQuestion = previousQuestion;
-          this.activeQuestionIndex = previousQuestionIndex;
-          await this.revealSpecificQuestion(previousQuestion);
+          this.activeQuestion = questionToReveal;
+          this.activeQuestionIndex =
+            this.quiz.questions.findIndex((candidate) => candidate.id === questionToReveal.id) + 1 || previousQuestionIndex;
+          await this.revealSpecificQuestion(questionToReveal);
           return;
         }
 
@@ -256,12 +266,15 @@ export class InstructorController {
   }
 
   private renderQuestionReveal(question: QuizQuestion): void {
-    const currentSlide = document.querySelector<HTMLElement>("section.present");
+    const currentSlide =
+      document.querySelector<HTMLElement>(`section.present[data-question-id="${cssEscape(question.id)}"]`) ??
+      document.querySelector<HTMLElement>(`section[data-question-id="${cssEscape(question.id)}"]`);
 
     if (!currentSlide || currentSlide.dataset.questionId !== question.id) {
       return;
     }
 
+    const explanationText = question.explanation ?? this.session?.revealedAnswer?.explanation ?? "";
     currentSlide.classList.add("quiz-slide--revealed");
     currentSlide.querySelectorAll<HTMLElement>(".answer-option--display").forEach((option) => {
       option.querySelector(".answer-option__explanation")?.remove();
@@ -269,10 +282,10 @@ export class InstructorController {
       option.classList.toggle("is-correct-answer", isCorrect);
       option.classList.toggle("is-muted-answer", !isCorrect);
 
-      if (isCorrect && question.explanation) {
+      if (isCorrect && explanationText) {
         const explanation = document.createElement("div");
         explanation.className = "answer-option__explanation";
-        explanation.textContent = question.explanation;
+        explanation.textContent = explanationText;
         option.append(explanation);
       }
     });
@@ -285,14 +298,19 @@ export class InstructorController {
       if (answerBox && blank) {
         blank.textContent = question.answers.join(" / ");
 
-        if (question.explanation) {
+        if (explanationText) {
           const explanation = document.createElement("div");
           explanation.className = "answer-option__explanation";
-          explanation.textContent = question.explanation;
+          explanation.textContent = explanationText;
           answerBox.append(explanation);
         }
       }
     }
+  }
+
+  private getQuestionForLeaderboardSlide(slide?: HTMLElement): QuizQuestion | undefined {
+    const questionId = slide?.dataset.afterQuestionId ?? this.session?.currentQuestionId ?? "";
+    return this.quiz.questions.find((candidate) => candidate.id === questionId);
   }
 
   private listenPlayers(code: string): void {
@@ -591,6 +609,10 @@ function escapePanelText(value: string): string {
 function csvCell(value: string | number): string {
   const text = String(value).replace(/"/g, '""');
   return `"${text}"`;
+}
+
+function cssEscape(value: string): string {
+  return globalThis.CSS?.escape ? globalThis.CSS.escape(value) : value.replace(/["\\]/g, "\\$&");
 }
 
 function getCorrectAnswerIndex(question: QuizQuestion): string {
