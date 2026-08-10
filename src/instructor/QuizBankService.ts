@@ -1,5 +1,5 @@
 import { signInAnonymously } from "firebase/auth";
-import { addDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import type { QuizFile } from "../types/Question";
 
@@ -29,6 +29,17 @@ export class QuizBankService {
       quiz,
       savedAt: serverTimestamp()
     });
+  }
+
+  async getQuiz(quizId: string): Promise<QuizFile | undefined> {
+    const uid = await this.ensureUid();
+    const snapshot = await getDoc(doc(db, "users", uid, "quizBank", quizId));
+
+    if (!snapshot.exists()) {
+      return undefined;
+    }
+
+    return (snapshot.data() as Partial<SavedQuizBankEntry>).quiz;
   }
 
   private async ensureUid(): Promise<string> {

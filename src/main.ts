@@ -16,6 +16,8 @@ import {
   QuestionGenerationStudio,
   readGeneratedDraft
 } from "./instructor/QuestionGenerationStudio";
+import { readQuizBankHandoff } from "./instructor/QuizBankHandoff";
+import { QuizBankService } from "./instructor/QuizBankService";
 import { InstructorController } from "./instructor/InstructorController";
 import { InstructorSetup } from "./instructor/InstructorSetup";
 import { StudentClient } from "./student/StudentClient";
@@ -65,11 +67,7 @@ async function bootstrap() {
     return;
   }
 
-  const loader = new QuizLoader();
-  const result =
-    options.mode === "preview-generated"
-      ? { data: readGeneratedDraft(), errors: ["No reviewed generated draft is available."] }
-      : await loader.loadFromUrl(options.quizUrl);
+  const result = await loadQuiz(options);
 
   if (!result.data) {
     renderFatalError(result.errors);
@@ -79,7 +77,7 @@ async function bootstrap() {
   const quiz = applyGameOverrides(result.data, options.gameOverrides);
   const presentationLoader = new MarkdownPresentationLoader();
   const presentation =
-    options.mode === "preview-generated"
+    options.mode === "preview-generated" || options.isQuizBankActivity
       ? { markdown: createGeneratedPresentation(quiz), errors: [] }
       : await presentationLoader.loadFromUrl(options.presentationUrl);
 
@@ -111,6 +109,22 @@ async function bootstrap() {
   instructor.mount();
 }
 
+async function loadQuiz(options: ReturnType<typeof readAuthoringOptions>) {
+  if (options.mode === "preview-generated") {
+    return { data: readGeneratedDraft(), errors: ["No reviewed generated draft is available."] };
+  }
+
+  if (options.isQuizBankActivity) {
+    const quiz = (await new QuizBankService().getQuiz(options.quizId)) ?? readQuizBankHandoff(options.quizId);
+    return {
+      data: quiz,
+      errors: ["Saved quiz bank activity is not available. Return to Instructor Setup and select it again."]
+    };
+  }
+
+  return new QuizLoader().loadFromUrl(options.quizUrl);
+}
+
 function readAuthoringOptions() {
   const params = new URLSearchParams(window.location.search);
   const presentation = params.get("presentation") ?? "example";
@@ -120,6 +134,7 @@ function readAuthoringOptions() {
   const code = params.get("code") ?? "";
   const gameOverrides = readGameOverrides(params);
   const autoStartSession = mode === "deck" && params.get("autoStart") !== "0";
+  const isQuizBankActivity = params.get("quizBank") === "1";
 
   return {
     presentationUrl: `/presentations/${sanitizeSlug(presentation)}.md`,
@@ -129,6 +144,7 @@ function readAuthoringOptions() {
     mode: sanitizeSlug(mode),
     code: sanitizeSlug(code),
     autoStartSession,
+    isQuizBankActivity,
     gameOverrides
   };
 }

@@ -335,6 +335,17 @@
   line-height: 1.45;
 }
 
+.instructor-setup-status {
+  margin: 0;
+  color: var(--rq-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.instructor-setup-status.is-error {
+  color: var(--rq-red);
+}
+
 .instructor-setup-form {
   display: grid;
   gap: 14px;
