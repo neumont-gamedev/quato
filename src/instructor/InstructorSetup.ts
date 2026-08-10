@@ -1,5 +1,5 @@
 import { escapeHtml } from "../questions/QuestionRenderer";
-import { writeQuizBankHandoff } from "./QuizBankHandoff";
+import { readBrowserQuizBankEntries, writeQuizBankHandoff } from "./QuizBankHandoff";
 import { QuizBankService, type SavedQuizBankEntry } from "./QuizBankService";
 
 interface SetupOption {
@@ -87,8 +87,11 @@ export class InstructorSetup {
   }
 
   private async loadSavedQuizzes(): Promise<void> {
+    const browserQuizzes = readBrowserQuizBankEntries();
+
     try {
-      this.savedQuizzes = await this.quizBank.listQuizzes();
+      const firebaseQuizzes = await this.quizBank.listQuizzes();
+      this.savedQuizzes = mergeSavedQuizzes(firebaseQuizzes, browserQuizzes);
       const select = this.root.querySelector<HTMLSelectElement>('select[name="activity"]');
 
       if (select) {
@@ -103,7 +106,20 @@ export class InstructorSetup {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.renderStatus(`Saved quizzes could not be loaded: ${message}`, true);
+      this.savedQuizzes = browserQuizzes;
+      const select = this.root.querySelector<HTMLSelectElement>('select[name="activity"]');
+
+      if (select) {
+        const selectedValue = select.value;
+        select.innerHTML = this.renderActivityOptions(selectedValue);
+      }
+
+      this.renderStatus(
+        browserQuizzes.length > 0
+          ? `${browserQuizzes.length} browser-saved quiz${browserQuizzes.length === 1 ? "" : "zes"} ready. Firebase quiz bank could not be loaded: ${message}`
+          : `Saved quizzes could not be loaded: ${message}`,
+        browserQuizzes.length === 0
+      );
     }
   }
 
@@ -144,4 +160,10 @@ export class InstructorSetup {
       })
       .join("");
   }
+}
+
+function mergeSavedQuizzes(firebaseQuizzes: SavedQuizBankEntry[], browserQuizzes: SavedQuizBankEntry[]): SavedQuizBankEntry[] {
+  const firebaseTitles = new Set(firebaseQuizzes.map((entry) => entry.title.trim().toLowerCase()));
+  const uniqueBrowserQuizzes = browserQuizzes.filter((entry) => !firebaseTitles.has(entry.title.trim().toLowerCase()));
+  return [...firebaseQuizzes, ...uniqueBrowserQuizzes];
 }

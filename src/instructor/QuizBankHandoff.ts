@@ -3,6 +3,7 @@ import type { QuizFile } from "../types/Question";
 import type { SavedQuizBankEntry } from "./QuizBankService";
 
 const QUIZ_BANK_HANDOFF_STORAGE_KEY = "revealquiz.quizBankHandoff";
+const SAVED_DRAFTS_STORAGE_KEY = "revealquiz.savedDrafts";
 
 interface QuizBankHandoff {
   id: string;
@@ -42,6 +43,26 @@ export function readQuizBankHandoff(expectedId: string): QuizFile | undefined {
     return new QuizLoader().validate(handoff.quiz).data;
   } catch {
     return undefined;
+  }
+}
+
+export function readBrowserQuizBankEntries(): SavedQuizBankEntry[] {
+  try {
+    const value = window.localStorage?.getItem(SAVED_DRAFTS_STORAGE_KEY);
+
+    if (!value) {
+      return [];
+    }
+
+    const savedDrafts = JSON.parse(value) as Record<string, { title: string; savedAt?: string; quiz: QuizFile }>;
+    return Object.entries(savedDrafts).map(([key, saved]) => ({
+      id: `browser-${key}`,
+      title: saved.title,
+      savedAt: saved.savedAt,
+      quiz: saved.quiz
+    }));
+  } catch {
+    return [];
   }
 }
 
